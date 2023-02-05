@@ -1,0 +1,16 @@
+# atom-ml==5.0.1
+ta-lib
+pandas_datareader
+pandas
+numpy==1.23.1
+yfinance
+matplotlib
+scikit-learn
+statsmodels
+quantstats
+getFamaFrenchFactors
+scipy
+sklearn
+xgboost
+pykalman
+PyWavelets
