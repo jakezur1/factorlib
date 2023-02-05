@@ -101,8 +101,8 @@ class KalmanFilter:
                       observation_covariance=self.observation_covariance,
                       transition_covariance=self.transition_covariance)
 
-        kalman_filtered_means = data
-        kalman_filtered_stdevs = data
+        kalman_filtered_means = data.copy(deep=True)
+        kalman_filtered_stdevs = data.copy(deep=True)
         for ticker in data.columns.get_level_values(0).unique():
             for factor in data.loc[:, ticker].columns.unique():
                 mean, cov = k_filter.filter(data.loc[:, (ticker, factor)])
@@ -122,7 +122,7 @@ class Butterworth:
         self.order = order
 
     def transform(self, data):
-        butter_filtered = data
+        butter_filtered = data.copy(deep=True)
         b, a = butter(self.order, self.cutoff, 'lowpass')
         for ticker in butter_filtered.columns.get_level_values(0).unique():
             for factor in butter_filtered.loc[:, ticker].columns.unique():
@@ -137,7 +137,7 @@ class Gaussian:
         self.stdev = stdev
 
     def transform(self, data):
-        gaussian_filtered = data
+        gaussian_filtered = data.copy(deep=True)
         for ticker in gaussian_filtered.columns.get_level_values(0).unique():
             for factor in gaussian_filtered.loc[:, ticker].columns.unique():
                 gaussian_filtered.loc[:, (ticker, factor)] = gaussian_filter(gaussian_filtered.loc[:, (ticker, factor)],
@@ -152,10 +152,11 @@ class Median:
         self.kernel_size = kernel_size
 
     def transform(self, data):
-        median_filtered = data
+        median_filtered = data.copy(deep=True)
         for ticker in median_filtered.columns.get_level_values(0).unique():
             for factor in median_filtered.loc[:, ticker].columns.unique():
-                median_filtered.loc[:, (ticker, factor)] = medfilt(data, kernel_size=self.kernel_size)
+                median_filtered.loc[:, (ticker, factor)] = medfilt(median_filtered.loc[:, (ticker, factor)],
+                                                                   kernel_size=self.kernel_size)
 
         median_filtered = _rename_columns_after_transform(median_filtered, transform='median')
         return median_filtered
@@ -186,9 +187,9 @@ class TimeDecomposition:
         self.seasonal = seasonal
 
     def transform(self, data):
-        trend_decomposition = data
-        seasonal_decomposition = data
-        residual_decomposition = data
+        trend_decomposition = data.copy(deep=True)
+        seasonal_decomposition = data.copy(deep=True)
+        residual_decomposition = data.copy(deep=True)
         for ticker in data.columns.get_level_values(0).unique():
             for factor in data.loc[:, ticker].columns.unique():
                 decomposition = sm.tsa.STL(data.loc[:, (ticker, factor)], seasonal=self.seasonal).fit()

@@ -9,6 +9,7 @@ import yfinance as yf
 import quantstats as qs
 from typing import Literal
 from factor_model.factor import Factor, yf_intervals
+from factor_model.statistics import Statistics
 # from atom import ATOMClassifier
 from xgboost import XGBRegressor
 
@@ -130,7 +131,8 @@ class FactorModel:
         portfolio_returns = returns_per_stock.sum(axis=1)
 
         returns = returns * (1 / len(self.tickers))
-        qs.reports.html(portfolio_returns, output='backtest.html')
+        return Statistics(portfolio_returns, self)
+
 
     def _get_positions(self, row, k, long_pct):
         indices = np.argsort(row)
