@@ -111,6 +111,7 @@ class Statistics:
         statsTable.add_row(sharpes)
         statsTable.add_row(sortinos)
         statsTable.add_row(cagrs)
+        statsTable.add_row(avg_rtns)
         print(statsTable)
 
     def _get_random_positions(self, row, k):
