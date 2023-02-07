@@ -10,7 +10,7 @@ from factor_model_lib.transforms import *
 interval = 'M'
 
 # original getting data with yfinance
-stocks_list = ['AAPL', 'AMZN']
+stocks_list = ['AAPL', 'AMZN', 'BABA', 'JPM', 'GOOG', 'MSFT', 'TSLA', 'V', 'WMT', 'XOM']
 stocks_data = yf.download(stocks_list, interval='1d', start='2014-12-08')['Adj Close']
 stocks_data = stocks_data.resample(interval, convention='end').ffill()
 stocks_data.index = pd.to_datetime(stocks_data.index).tz_localize(None)
@@ -58,7 +58,6 @@ model.add_factor(median)
 # model.add_factor(wavelet)
 # model.add_factor(time_decomposition)
 
-print(model.factors.sort_index(axis=1, level=0))
 model.fit(returns_data, 'xgb', time='t+1')
 statistics = model.backtest(datetime(2018, 1, 1), datetime(2022, 11, 1))
 statistics.find_factor_significance()
