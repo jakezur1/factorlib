@@ -16,3 +16,5 @@ pykalman
 PyWavelets
 pyarrow
 cloudpickle
+prettytable
+ipython
