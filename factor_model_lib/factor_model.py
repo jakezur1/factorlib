@@ -8,8 +8,7 @@ import numpy as np
 import yfinance as yf
 import quantstats as qs
 from typing import Literal
-from factor_model.factor import Factor, yf_intervals
-from factor_model.statistics import Statistics
+from factor_model_lib.factor import Factor, yf_intervals
 # from atom import ATOMClassifier
 from xgboost import XGBRegressor
 
@@ -67,8 +66,8 @@ class FactorModel:
         dates_train, dates_test = train_test_split(dates, test_size=test_split, random_state=42, shuffle=True)
         X_train = pd.DataFrame()
         X_test = pd.DataFrame()
-        y_train = pd.Series()
-        y_test = pd.Series()
+        y_train = pd.Series(dtype=float)
+        y_test = pd.Series(dtype=float)
         for ticker in self.tickers:
             X_train = pd.concat([X_train, self.factors[ticker].loc[dates_train]], axis=0)
             y_train = pd.concat([y_train, returns[ticker].loc[dates_train]], axis=0)
@@ -87,7 +86,7 @@ class FactorModel:
             self.model = self._get_model(model, **kwargs)
         self.model.fit(X_train, y_train)
 
-        print(self.model.score(X_test, y_test))
+        print(f'model score: {self.model.score(X_test, y_test)}')
         return self.model
 
     def predict(self, factors: pd.DataFrame):
@@ -131,6 +130,9 @@ class FactorModel:
         portfolio_returns = returns_per_stock.sum(axis=1)
 
         returns = returns * (1 / len(self.tickers))
+
+        # importing here to avoiod circular import
+        from factor_model_lib.statistics import Statistics
         return Statistics(portfolio_returns, self)
 
 
