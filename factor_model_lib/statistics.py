@@ -89,7 +89,7 @@ class Statistics:
     def print_statistics_report(self):
         print()
         print('{:<35s}'.format('FACTOR MODEL ANALYSIS REPORT'))
-        print()
+        print('{:<35s}'.format('=============================='))
         print('{:<30s}'.format('Relative to baseline models:'))
         column_headers = [x.columns[0] for x in self.all_returns]
         column_headers.insert(0, 'metric:')
