@@ -97,21 +97,28 @@ class Statistics:
 
         t_tests = ['paired t-test']
         t_tests.extend(self.find_factor_significance())
-        sharpes = ['sharpe']
-        sortinos = ['sortino']
-        cagrs = ['cagr']
-        avg_rtns = ['avg rtns']
+        sharpe = ['sharpe']
+        sortino = ['sortino']
+        cagr = ['cagr']
+        avg_rtn = ['avg rtns']
+        max_drawdown = ['max drawdown']
+        volatility = ['volatility']
+
         for returns in self.all_returns:
-            sharpes.append(round(returns.sharpe().values[0], 3))
-            sortinos.append(round(qs.stats.sortino(returns).values[0], 3))
-            cagrs.append(str(round(qs.stats.cagr(returns).values[0] * 100, 2)) + '%')
-            avg_rtns.append(str(round(qs.stats.avg_return(returns).values[0] * 100, 2)) + '%')
+            sharpe.append(round(returns.sharpe().values[0], 3))
+            sortino.append(round(qs.stats.sortino(returns).values[0], 3))
+            cagr.append(str(round(qs.stats.cagr(returns).values[0] * 100, 2)) + '%')
+            avg_rtn.append(str(round(qs.stats.avg_return(returns).values[0] * 100, 2)) + '%')
+            max_drawdown.append(str(round(qs.stats.max_drawdown(returns).values[0] * 100, 2)) + '%')
+            volatility.append(str(round(qs.stats.volatility(returns).values[0] * 100, 2)) + '%')
 
         statsTable.add_row(t_tests)
-        statsTable.add_row(sharpes)
-        statsTable.add_row(sortinos)
-        statsTable.add_row(cagrs)
-        statsTable.add_row(avg_rtns)
+        statsTable.add_row(sharpe)
+        statsTable.add_row(sortino)
+        statsTable.add_row(cagr)
+        statsTable.add_row(avg_rtn)
+        statsTable.add_row(max_drawdown)
+        statsTable.add_row(volatility)
         print(statsTable)
 
     def _get_random_positions(self, row, k):
