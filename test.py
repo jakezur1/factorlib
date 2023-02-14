@@ -3,9 +3,9 @@ import numpy as np
 import yfinance as yf
 import getFamaFrenchFactors as gff
 from datetime import datetime
-from factor_model_lib.factor_model import FactorModel
-from factor_model_lib.factor import Factor
-from factor_model_lib.transforms import *
+from factor_lib.factor_model import FactorModel
+from factor_lib.factor import Factor
+from factor_lib.transforms import *
 
 interval = 'M'
 
@@ -51,10 +51,10 @@ model.add_factor(log_prices)
 model.add_factor(sma_3)
 model.add_factor(sma_6)
 model.add_factor(sma_12)
-model.add_factor(kalman_filter)
-model.add_factor(butters)
-model.add_factor(gaussian)
-model.add_factor(median)
+# model.add_factor(kalman_filter)
+# model.add_factor(butters)
+# model.add_factor(gaussian)
+# model.add_factor(median)
 # model.add_factor(wavelet)
 # model.add_factor(time_decomposition)
 

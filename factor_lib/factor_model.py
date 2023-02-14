@@ -8,7 +8,7 @@ import numpy as np
 import yfinance as yf
 import quantstats as qs
 from typing import Literal
-from factor_model_lib.factor import Factor, yf_intervals
+from factor_lib.factor import Factor, yf_intervals
 # from atom import ATOMClassifier
 from xgboost import XGBRegressor
 
@@ -51,7 +51,7 @@ class FactorModel:
             print(f'could not localize index of returns, moving on.')
 
         # align factor dates to be at the latest first date and earliest last date, so all values are accounted for
-        self.factors.dropna(inplace=True)
+        # self.factors.dropna(inplace=True)
         valid_dates = self.factors.index
         if valid_dates[0] < returns.index[0]:
             valid_dates = valid_dates[valid_dates >= returns.index[0]]
@@ -68,12 +68,28 @@ class FactorModel:
         X_test = pd.DataFrame()
         y_train = pd.Series(dtype=float)
         y_test = pd.Series(dtype=float)
+
+        train_returns_concatenated = pd.Series(dtype=object)
+        test_returns_concatenated = pd.Series(dtype=object)
         for ticker in self.tickers:
             X_train = pd.concat([X_train, self.factors[ticker].loc[dates_train]], axis=0)
             y_train = pd.concat([y_train, returns[ticker].loc[dates_train]], axis=0)
 
             X_test = pd.concat([X_test, self.factors[ticker].loc[dates_test]], axis=0)
             y_test = pd.concat([y_test, returns[ticker].loc[dates_test]], axis=0)
+
+            train_returns_concatenated = pd.concat([train_returns_concatenated, returns[ticker].loc[dates_train]], axis=0)
+            test_returns_concatenated = pd.concat([test_returns_concatenated, returns[ticker].loc[dates_test]], axis=0)
+
+        X_train['returns'] = train_returns_concatenated
+        X_train = X_train.dropna()
+        y_train = X_train['returns']
+        X_train.drop('returns', axis=1, inplace=True)
+
+        X_test['returns'] = test_returns_concatenated
+        X_test = X_test.dropna()
+        y_test = X_test['returns']
+        X_test.drop('returns', axis=1, inplace=True)
 
         if model == 'linear':
             self.model = RollingOLS(y_train, X_train, window=window).fit()
@@ -132,7 +148,7 @@ class FactorModel:
         returns = returns * (1 / len(self.tickers))
 
         # importing here to avoiod circular import
-        from factor_model_lib.statistics import Statistics
+        from factor_lib.statistics import Statistics
         return Statistics(portfolio_returns, self)
 
 

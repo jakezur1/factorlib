@@ -4,11 +4,9 @@ import pandas as pd
 import numpy as np
 import quantstats as qs
 import yfinance as yf
-from factor_model_lib.factor_model import FactorModel
+from factor_lib.factor_model import FactorModel
 from scipy import stats
 import random
-from dateutil.relativedelta import relativedelta
-from datetime import datetime
 from prettytable import PrettyTable
 
 
