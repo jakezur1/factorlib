@@ -48,10 +48,8 @@ median = Factor(tickers=stocks_list, interval=interval, data=stocks_data, price_
 time_decomposition = Factor(tickers=stocks_list, interval=interval, data=stocks_data, price_data=True,
                             name='time_decomposition', transforms=[TimeDecomposition().transform])
 
-wrds_ratios_path = '/Users/jakezur/Documents/finance/factor-experiments/data/wrds_ratios_formatted.csv'
-fundamentals = pd.read_csv(wrds_ratios_path, dtype=object)[stocks_list]
-print(fundamentals)
-fundamentals = fundamentals.set_index('public_date')
+wrds_ratios_path = './data/wrds_ratios.csv'
+fundamentals = df = pd.read_csv('./data/wrds_ratios_formatted.csv', header=[0, 1], index_col=0)[stocks_list]
 fundamentals.index = pd.to_datetime(fundamentals.index)
 print(fundamentals)
 fundamentals = Factor(tickers=stocks_list, interval=interval, data=fundamentals, name='fundamentals')
@@ -70,6 +68,6 @@ model.add_factor(fundamentals)
 # model.add_factor(time_decomposition)
 
 model.fit(returns_data, 'xgb', time='t+1')
-statistics = model.backtest(datetime(2018, 1, 1), datetime(2022, 11, 1))
+statistics = model.backtest(datetime(2014, 1, 1), datetime(2022, 11, 1))
 statistics.find_factor_significance()
 statistics.print_statistics_report()
