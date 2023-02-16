@@ -36,9 +36,13 @@ class FactorModel:
         value = time.split('t+')
         if len(value) > 0:
             shift = value[1]
+            print(returns)
             returns = returns.shift(-1 * int(shift)) # shift returns back
+            print(returns)
         else:
             returns = returns
+
+
 
         try:
             returns.index = pd.to_datetime(returns.index)
@@ -91,6 +95,8 @@ class FactorModel:
         y_test = X_test['returns']
         X_test.drop('returns', axis=1, inplace=True)
 
+        print(X_train)
+
         if model == 'linear':
             self.model = RollingOLS(y_train, X_train, window=window).fit()
             return self.model
@@ -102,7 +108,7 @@ class FactorModel:
             self.model = self._get_model(model, **kwargs)
         self.model.fit(X_train, y_train)
 
-        print(f'model score: {self.model.score(X_test, y_test)}')
+        print(f'model score: {self.model.score(X_train, y_train)}')
         return self.model
 
     def predict(self, factors: pd.DataFrame):
@@ -122,8 +128,9 @@ class FactorModel:
 
             expected_returns = expected_returns * binary_mask
 
+        # positions are predicted one day before
         positions = expected_returns.apply(self._get_positions, axis=1,
-                                           args=(min(k, len(self.tickers) // 2), long_pct))[1:]
+                                           args=(min(k, len(self.tickers) // 2), long_pct))[1:].shift(-1)
         positions.index = positions.index.tz_localize(None)
 
         stocks_data = yf.download(self.tickers, start=start_date, end=end_date,
@@ -147,10 +154,9 @@ class FactorModel:
 
         returns = returns * (1 / len(self.tickers))
 
-        # importing here to avoiod circular import
+        # importing here to avoid circular import
         from factor_lib.statistics import Statistics
         return Statistics(portfolio_returns, self)
-
 
     def _get_positions(self, row, k, long_pct):
         indices = np.argsort(row)

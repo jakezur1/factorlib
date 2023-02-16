@@ -55,7 +55,7 @@ class Statistics:
 
         positions = stock_prices
         positions = positions.apply(self._get_random_positions, axis=1,
-                                    args=[min(20, len(self.testing_model.tickers) // 2)])
+                                    args=[min(20, len(self.testing_model.tickers) // 2)]).shift(-1)
         self.random_baseline = stock_returns
         self.random_baseline = self.random_baseline.mul(positions)
         self.random_baseline = self.random_baseline.sum(axis=1)
