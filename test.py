@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 import numpy as np
 import yfinance as yf
@@ -10,7 +12,7 @@ from factor_lib.transforms import *
 interval = 'M'
 
 # original getting data with yfinance
-stocks_list = ['AAPL', 'AMZN', 'BABA', 'JPM', 'GOOG', 'MSFT', 'TSLA', 'V', 'WMT', 'XOM']
+stocks_list = ['AAPL', 'AMZN', 'JPM', 'MSFT', 'TSLA', 'V', 'WMT', 'XOM']
 stocks_data = yf.download(stocks_list, interval='1d', start='2014-12-08')['Adj Close']
 stocks_data = stocks_data.resample(interval, convention='end').ffill()
 stocks_data.index = pd.to_datetime(stocks_data.index).tz_localize(None)
@@ -46,11 +48,20 @@ median = Factor(tickers=stocks_list, interval=interval, data=stocks_data, price_
 time_decomposition = Factor(tickers=stocks_list, interval=interval, data=stocks_data, price_data=True,
                             name='time_decomposition', transforms=[TimeDecomposition().transform])
 
+wrds_ratios_path = '/Users/jakezur/Documents/finance/factor-experiments/data/wrds_ratios_formatted.csv'
+fundamentals = pd.read_csv(wrds_ratios_path, dtype=object)[stocks_list]
+print(fundamentals)
+fundamentals = fundamentals.set_index('public_date')
+fundamentals.index = pd.to_datetime(fundamentals.index)
+print(fundamentals)
+fundamentals = Factor(tickers=stocks_list, interval=interval, data=fundamentals, name='fundamentals')
+
 model.add_factor(ff5)
 model.add_factor(log_prices)
 model.add_factor(sma_3)
 model.add_factor(sma_6)
 model.add_factor(sma_12)
+model.add_factor(fundamentals)
 # model.add_factor(kalman_filter)
 # model.add_factor(butters)
 # model.add_factor(gaussian)
