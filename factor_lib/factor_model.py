@@ -11,6 +11,10 @@ from typing import Literal
 from factor_lib.factor import Factor, yf_intervals
 # from atom import ATOMClassifier
 from xgboost import XGBRegressor
+import warnings
+
+warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
+
 
 ModelType = Literal['hgb', 'gbr', 'adaboost', 'rf', 'et', 'linear', 'voting', 'xgb']
 
@@ -23,7 +27,7 @@ class FactorModel:
         self.model = None
 
     def add_factor(self, factor: Factor, replace=False):
-        assert factor.tickers == self.tickers, 'Factor tickers must match model tickers'
+        assert set(self.tickers).issubset(set(factor.tickers)), 'Factor tickers must include model tickers'
         self.factors = pd.concat([self.factors, factor.data], axis=1)
 
     def fit(self, returns: pd.DataFrame, model: ModelType, voting_models=None,
@@ -36,9 +40,7 @@ class FactorModel:
         value = time.split('t+')
         if len(value) > 0:
             shift = value[1]
-            print(returns)
             returns = returns.shift(-1 * int(shift)) # shift returns back
-            print(returns)
         else:
             returns = returns
 
@@ -95,8 +97,6 @@ class FactorModel:
         y_test = X_test['returns']
         X_test.drop('returns', axis=1, inplace=True)
 
-        print(X_train)
-
         if model == 'linear':
             self.model = RollingOLS(y_train, X_train, window=window).fit()
             return self.model
@@ -108,13 +108,15 @@ class FactorModel:
             self.model = self._get_model(model, **kwargs)
         self.model.fit(X_train, y_train)
 
-        print(f'model score: {self.model.score(X_train, y_train)}')
+        print(f'model score on train: {self.model.score(X_train, y_train)}')
+        print(f'model score on test: {self.model.score(X_test, y_test)}')
         return self.model
 
     def predict(self, factors: pd.DataFrame):
         return self.model.predict(factors)
 
-    def backtest(self, start_date, end_date, candidates=None, k=10, long_pct=0.5):
+    def backtest(self, start_date, end_date, returns=None, candidates=None, k=10, long_pct=0.5):
+
         expected_returns = pd.DataFrame()
         for ticker in self.tickers:
             expected_returns[ticker] = self.model.predict(self.factors[ticker].loc[start_date:end_date]).flatten()
@@ -129,18 +131,22 @@ class FactorModel:
             expected_returns = expected_returns * binary_mask
 
         # positions are predicted one day before
+        print("Expected Returns:")
+        print(expected_returns)
         positions = expected_returns.apply(self._get_positions, axis=1,
-                                           args=(min(k, len(self.tickers) // 2), long_pct))[1:].shift(-1)
+                                           args=(min(k, len(self.tickers) // 2), long_pct))
         positions.index = positions.index.tz_localize(None)
 
-        stocks_data = yf.download(self.tickers, start=start_date, end=end_date,
-                                  interval=yf_intervals[self.interval])['Adj Close']
-        stocks_data = stocks_data.resample(self.interval, convention='end').ffill()
-        stocks_data.fillna(value=0, inplace=True)
-        returns = stocks_data.pct_change(1)
-        returns.dropna(inplace=True)
-        returns.index = pd.to_datetime(returns.index).tz_localize(None)
-
+        if returns is None:
+            stocks_data = yf.download(self.tickers, start=start_date, end=end_date,
+                                      interval=yf_intervals[self.interval])['Adj Close']
+            stocks_data.index = pd.to_datetime(stocks_data.index)
+            stocks_data.fillna(value=0, inplace=True)
+            returns = stocks_data.pct_change(1)
+            returns.dropna(inplace=True)
+            returns.index = pd.to_datetime(returns.index).tz_localize(None)
+        else:
+            returns = returns.loc[start_date:end_date]
         if returns.index[0] > positions.index[0]:
             positions = positions.loc[returns.index[0]:returns.index[-1]]
         else:
@@ -149,14 +155,12 @@ class FactorModel:
         returns.index = pd.to_datetime(returns.index)
         positions.index = returns.index
 
-        returns_per_stock = returns.mul(positions)
+        returns_per_stock = returns.mul(positions.shift(1)) # you have to shift positions by 1 day
         portfolio_returns = returns_per_stock.sum(axis=1)
-
-        returns = returns * (1 / len(self.tickers))
 
         # importing here to avoid circular import
         from factor_lib.statistics import Statistics
-        return Statistics(portfolio_returns, self)
+        return Statistics(portfolio_returns, self, stock_returns=returns)
 
     def _get_positions(self, row, k, long_pct):
         indices = np.argsort(row)
