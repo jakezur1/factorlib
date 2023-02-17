@@ -83,7 +83,8 @@ model.add_factor(fundamentals)
 # model.add_factor(time_decomposition)
 
 print('Fitting Alpha Factor Model...')
-model.fit(returns_data.loc[datetime(2002, 1, 1):datetime(2022, 11, 1)], 'xgb', time='t+1')
+model.fit(returns_data.loc[datetime(2002, 1, 1):datetime(2022, 11, 1)],
+          'xgb', time='t+1', subsample=0.8, reg_lambda=1.2, reg_alpha=0.5)
 statistics = model.backtest(datetime(2014, 1, 1), datetime(2022, 11, 1), returns=returns_data)
 statistics.find_factor_significance()
 statistics.print_statistics_report()
