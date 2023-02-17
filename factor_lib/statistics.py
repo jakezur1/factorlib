@@ -12,6 +12,7 @@ from prettytable import PrettyTable
 
 class Statistics:
     def __init__(self, portfolio_returns, model: FactorModel,
+                 stock_returns: pd.DataFrame = None,
                  extra_baselines: [pd.Series] = None, rebalancing_option=False):
         qs.extend_pandas()
         self.testing_model = model
@@ -19,18 +20,11 @@ class Statistics:
         self.portfolio_returns.index = pd.to_datetime(self.portfolio_returns.index).tz_localize(None) \
             .floor('D')
         self.portfolio_returns = portfolio_returns.resample(self.testing_model.interval, convention='end').ffill()
+
         correct_index = self.portfolio_returns[1:].index
+        bh_returns = stock_returns.loc[correct_index]
 
-        # need to populate these with actual returns to compare
-        stock_prices = yf.download(tickers=self.testing_model.tickers,
-                                   start=self.portfolio_returns.index[0],
-                                   end=self.portfolio_returns.index[-1])['Adj Close']
-        stock_prices.index = pd.to_datetime(stock_prices.index).tz_localize(None).floor('D')
-        stock_prices = stock_prices.resample(self.testing_model.interval, convention='end').ffill()
-
-        stock_returns = stock_prices.pct_change().dropna()
-        stock_returns = stock_returns.loc[correct_index]
-        self.buy_hold_baseline = stock_returns / len(self.testing_model.tickers)
+        self.buy_hold_baseline = bh_returns / len(self.testing_model.tickers)
         self.buy_hold_baseline = self.buy_hold_baseline.sum(axis=1)
         self.buy_hold_baseline = self.buy_hold_baseline.loc[correct_index]
         self.buy_hold_baseline = pd.DataFrame(data={
@@ -48,12 +42,9 @@ class Statistics:
         })
         self.spy_baseline = spy_returns
 
-        stock_prices = yf.download(tickers=self.testing_model.tickers, start=self.portfolio_returns.index[0],
-                                   end=self.portfolio_returns.index[-1])['Adj Close']
-        stock_prices = stock_prices.resample(self.testing_model.interval, convention='end').ffill()
-        stock_returns = stock_prices.pct_change().dropna()
+        stock_returns = stock_returns.loc[self.portfolio_returns.index[0]:self.portfolio_returns.index[-1]]
 
-        positions = stock_prices
+        positions = stock_returns[self.testing_model.tickers]
         positions = positions.apply(self._get_random_positions, axis=1,
                                     args=[min(20, len(self.testing_model.tickers) // 2)]).shift(-1)
         self.random_baseline = stock_returns
@@ -74,6 +65,9 @@ class Statistics:
 
     def get_full_qs(self):
         qs.reports.full(self.portfolio_returns)
+
+    def get_html(self):
+        qs.reports.html(self.portfolio_returns, output='factor_model.html')
 
     def find_factor_significance(self):
         factor_significances = []
