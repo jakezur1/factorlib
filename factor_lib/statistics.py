@@ -78,6 +78,14 @@ class Statistics:
 
         return factor_significances
 
+    def compute_correlations(self):
+        new_df = pd.DataFrame()
+        for ticker in self.testing_model.tickers:
+            new_df = pd.concat(new_df, self.testing_model.factors[ticker])
+        corr = new_df.corr('spearman')
+        corr.style.background_gradient(cmap='coolwarm')
+        return corr
+
     def print_statistics_report(self):
         print()
         print('{:<35s}'.format('FACTOR MODEL ANALYSIS REPORT'))
