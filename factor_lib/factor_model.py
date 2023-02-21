@@ -122,6 +122,8 @@ class FactorModel:
             expected_returns[ticker] = self.model.predict(self.factors[ticker].loc[start_date:end_date]).flatten()
             expected_returns.index = self.factors[ticker].loc[start_date:end_date].index
 
+        predicted_returns = expected_returns
+
         if candidates is not None:
             assert len(candidates.keys()) == len(expected_returns.index)
             binary_mask = pd.DataFrame(0, columns=self.tickers, index=expected_returns.index)
@@ -155,12 +157,12 @@ class FactorModel:
         returns.index = pd.to_datetime(returns.index)
         positions.index = returns.index
 
-        returns_per_stock = returns.mul(positions.shift(1)) # you have to shift positions by 1 day
+        returns_per_stock = returns.mul(positions.shift(1))  # you have to shift positions by 1 day
         portfolio_returns = returns_per_stock.sum(axis=1)
 
         # importing here to avoid circular import
         from factor_lib.statistics import Statistics
-        return Statistics(portfolio_returns, self, stock_returns=returns)
+        return Statistics(portfolio_returns, self, predicted_returns=predicted_returns, stock_returns=returns)
 
     def _get_positions(self, row, k, long_pct):
         indices = np.argsort(row)
