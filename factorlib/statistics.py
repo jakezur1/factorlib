@@ -83,10 +83,10 @@ class Statistics:
             self.all_returns.extend(extra_baselines)
 
     def get_full_qs(self):
-        qs.reports.full(self.portfolio_returns, periods_per_year=qs_intervals[self.testing_model.interval])
+        qs.reports.full(self.portfolio_returns['factors'], periods_per_year=qs_intervals[self.testing_model.interval])
 
     def get_html(self):
-        qs.reports.html(self.portfolio_returns, output='factor_model.html',
+        qs.reports.html(self.portfolio_returns['factors'], output='factor_model.html',
                         periods_per_year=qs_intervals[self.testing_model.interval])
 
     def find_factor_significance(self):
