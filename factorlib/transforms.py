@@ -66,7 +66,7 @@ class ZScore:
 
 
 class Rank:
-    def __init__(self, ascending=False, replace_original=False):
+    def __init__(self, ascending=False, replace_original=True):
         self.ascending = ascending
         self.replace_original = replace_original
 
