@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import quantstats as qs
 import yfinance as yf
-from factor_lib.factor_model import FactorModel
+from factorlib.factor_model import FactorModel
 from scipy import stats
 import random
 from prettytable import PrettyTable
@@ -125,7 +125,7 @@ class Statistics:
         avg_rtn = ['avg rtns']
         max_drawdown = ['max drawdown']
         volatility = ['volatility']
-        self.compute_spearman_rank()
+        print('Spearman correlation: ' + str(self.compute_spearman_rank()))
         for returns in self.all_returns:
             sharpe.append(round(returns.sharpe(periods=qs_intervals[self.testing_model.interval]).values[0], 3))
             sortino.append(round(returns.sortino(periods=qs_intervals[self.testing_model.interval]).values[0], 3))
