@@ -164,9 +164,9 @@ class FactorModel:
         return Statistics(portfolio_returns, self, predicted_returns=predicted_returns, stock_returns=returns)
 
     def _get_positions(self, row, k, long_pct):
-        indices = np.argsort(row)
-        topk = indices[:k]
-        bottomk = indices[-k:]
+        indices = np.argsort(row) # sorted in ascending order
+        bottomk = indices[:k]
+        topk = indices[-k:]
         positions = [0] * len(row)
 
         for i in topk:

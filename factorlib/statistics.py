@@ -155,8 +155,8 @@ class Statistics:
         long_weights = np.random.random(len(indices))
         long_weights /= (np.sum(long_weights))
 
-        topk = indices[:k]
-        bottomk = indices[-k:]
+        bottomk = indices[:k]
+        topk = indices[-k:]
         positions = [0] * len(row)
         for index, i in enumerate(topk):
             positions[i] = (1 / k) * long_weights[index]
