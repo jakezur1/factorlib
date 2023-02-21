@@ -160,7 +160,7 @@ class FactorModel:
         portfolio_returns = returns_per_stock.sum(axis=1)
 
         # importing here to avoid circular import
-        from factorlib.statistics import Statistics
+        from .statistics import Statistics
         return Statistics(portfolio_returns, self, predicted_returns=predicted_returns, stock_returns=returns)
 
     def _get_positions(self, row, k, long_pct):
