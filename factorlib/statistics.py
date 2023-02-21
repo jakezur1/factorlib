@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import quantstats as qs
 import yfinance as yf
-from factorlib.factor_model import FactorModel
+from .factor_model import FactorModel
 from scipy import stats
 import random
 from prettytable import PrettyTable
