@@ -12,10 +12,13 @@ from prettytable import PrettyTable
 
 class Statistics:
     def __init__(self, portfolio_returns, model: FactorModel,
+                 predicted_returns: pd.DataFrame,
                  stock_returns: pd.DataFrame = None,
                  extra_baselines: [pd.Series] = None, rebalancing_option=False):
         qs.extend_pandas()
         self.testing_model = model
+        self.predicted_returns = predicted_returns
+        self.stock_returns = stock_returns
         self.portfolio_returns = portfolio_returns
         self.portfolio_returns.index = pd.to_datetime(self.portfolio_returns.index).tz_localize(None) \
             .floor('D')
@@ -78,6 +81,11 @@ class Statistics:
 
         return factor_significances
 
+    def compute_spearman_rank(self):
+        spearman_ranks = self.stock_returns.corrwith(self.predicted_returns, method='spearman')
+        spearman_rank = spearman_ranks.mean()
+        return spearman_rank
+
     def compute_correlations(self):
         new_df = self.testing_model.factors[self.testing_model.tickers[0]].corr()
         for ticker in self.testing_model.tickers[1:]:
@@ -103,7 +111,7 @@ class Statistics:
         avg_rtn = ['avg rtns']
         max_drawdown = ['max drawdown']
         volatility = ['volatility']
-
+        self.compute_spearman_rank()
         for returns in self.all_returns:
             sharpe.append(round(returns.sharpe().values[0], 3))
             sortino.append(round(qs.stats.sortino(returns).values[0], 3))
