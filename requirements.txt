@@ -1,6 +1,6 @@
 # atom-ml==5.0.1
-ta-lib
 pandas_datareader
+tqdm
 pandas
 numpy==1.23.1
 yfinance
