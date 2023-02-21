@@ -88,5 +88,5 @@ model.fit(returns_data.loc[datetime(2002, 1, 1):datetime(2022, 11, 1)],
 statistics = model.backtest(datetime(2014, 1, 1), datetime(2022, 11, 1), returns=returns_data)
 statistics.find_factor_significance()
 statistics.print_statistics_report()
-statistics.get_full_qs()
-statistics.get_html()
+# statistics.get_full_qs()
+# statistics.get_html()
