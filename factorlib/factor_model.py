@@ -66,34 +66,33 @@ class FactorModel:
         returns.index = pd.to_datetime(returns.index)
         dates = returns.index
 
-        dates_train, dates_test = train_test_split(dates, test_size=test_split, random_state=42, shuffle=True)
+        # dates_train, dates_test = train_test_split(dates, test_size=test_split, random_state=42, shuffle=True)
         X_train = pd.DataFrame()
-        X_test = pd.DataFrame()
+        # X_test = pd.DataFrame()
         y_train = pd.Series(dtype=float)
-        y_test = pd.Series(dtype=float)
+        # y_test = pd.Series(dtype=float)
 
         train_returns_concatenated = pd.Series(dtype=object)
-        test_returns_concatenated = pd.Series(dtype=object)
+        # test_returns_concatenated = pd.Series(dtype=object)
         for ticker in self.tickers:
-            X_train = pd.concat([X_train, self.factors[ticker].loc[dates_train]], axis=0)
-            y_train = pd.concat([y_train, returns[ticker].loc[dates_train]], axis=0)
+            X_train = pd.concat([X_train, self.factors[ticker].loc[dates]], axis=0)
+            y_train = pd.concat([y_train, returns[ticker].loc[dates]], axis=0)
 
-            X_test = pd.concat([X_test, self.factors[ticker].loc[dates_test]], axis=0)
-            y_test = pd.concat([y_test, returns[ticker].loc[dates_test]], axis=0)
+            # X_test = pd.concat([X_test, self.factors[ticker].loc[dates_test]], axis=0)
+            # y_test = pd.concat([y_test, returns[ticker].loc[dates_test]], axis=0)
 
-            train_returns_concatenated = pd.concat([train_returns_concatenated, returns[ticker].loc[dates_train]],
-                                                   axis=0)
-            test_returns_concatenated = pd.concat([test_returns_concatenated, returns[ticker].loc[dates_test]], axis=0)
+            train_returns_concatenated = pd.concat([train_returns_concatenated, returns[ticker].loc[dates]], axis=0)
+            # test_returns_concatenated = pd.concat([test_returns_concatenated, returns[ticker].loc[dates_test]], axis=0)
 
         X_train['returns'] = train_returns_concatenated
         X_train = X_train.dropna()
         y_train = X_train['returns']
         X_train.drop('returns', axis=1, inplace=True)
 
-        X_test['returns'] = test_returns_concatenated
-        X_test = X_test.dropna()
-        y_test = X_test['returns']
-        X_test.drop('returns', axis=1, inplace=True)
+        # X_test['returns'] = test_returns_concatenated
+        # X_test = X_test.dropna()
+        # y_test = X_test['returns']
+        # X_test.drop('returns', axis=1, inplace=True)
 
         X_train.replace([np.inf, -np.inf], 0, inplace=True)
 
@@ -109,7 +108,7 @@ class FactorModel:
         self.model.fit(X_train, y_train)
 
         print(f'model score on train: {self.model.score(X_train, y_train)}')
-        print(f'model score on test: {self.model.score(X_test, y_test)}')
+        # print(f'model score on test: {self.model.score(X_test, y_test)}')
         return self.model
 
     def predict(self, factors: pd.DataFrame):

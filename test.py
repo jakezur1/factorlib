@@ -9,7 +9,7 @@ from factorlib.factor_model import FactorModel
 from factorlib.factor import Factor
 from factorlib.transforms import *
 
-interval = 'D'
+interval = 'M'
 start = '2002-01-01'
 end = '2021-01-01'
 
