@@ -9,18 +9,20 @@ from scipy import stats
 import random
 from prettytable import PrettyTable
 
-
 qs_intervals = {
     '1m': 525600,
-    '2m': 262800,
     '5m': 105120,
     '15m': 35040,
     '30m': 17520,
-    '1h': 8760,
+    '60m': 8760,
+    '90m': 5840,
+    '1h': 4380,
     'D': 365,
+    '5D': 73,
     'W': 52,
     'M': 12,
     '3M': 4,
+    'Y': 1
 }
 
 
@@ -81,10 +83,11 @@ class Statistics:
             self.all_returns.extend(extra_baselines)
 
     def get_full_qs(self):
-        qs.reports.full(self.portfolio_returns)
+        qs.reports.full(self.portfolio_returns, periods_per_year=qs_intervals[self.testing_model.interval])
 
     def get_html(self):
-        qs.reports.html(self.portfolio_returns, output='factor_model.html')
+        qs.reports.html(self.portfolio_returns, output='factor_model.html',
+                        periods_per_year=qs_intervals[self.testing_model.interval])
 
     def find_factor_significance(self):
         factor_significances = []

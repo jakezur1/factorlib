@@ -42,16 +42,17 @@ class Factor:
         assert not(general_factor and price_data), \
             "general_factor and price_data cannot both be True"
         if general_factor:
-            multi_index_factors = pd.DataFrame(columns=pd.MultiIndex.from_product([self.tickers, data.columns]))
-            for ticker in self.tickers:
-                multi_index_factors[ticker] = data
+            index = data.index
+            multi_index = pd.MultiIndex.from_product([self.tickers, data.columns])
+            factor_values = np.tile(data.values, (1, len(self.tickers)))
+            multi_index_factors = pd.DataFrame(factor_values, columns=multi_index, index=index)
             self.data = multi_index_factors
         elif price_data:
-            multi_index_prices = pd.DataFrame(columns=pd.MultiIndex.from_product([self.tickers, ['close']]))
-            for ticker in self.tickers:
-                prices_to_add = data[ticker].to_frame()
-                prices_to_add.columns = ['close']
-                multi_index_prices[ticker] = prices_to_add
+            index = data.index
+            data = data[self.tickers]
+            multi_index = pd.MultiIndex.from_product([self.tickers, ['close']])
+            multi_index_prices = pd.DataFrame(data.values, columns=multi_index, index=index)
+            multi_index_prices.columns = multi_index_prices.columns.set_levels(data.columns, level=0)
             self.data = multi_index_prices
 
         if len(transforms) > 0:

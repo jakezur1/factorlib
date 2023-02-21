@@ -29,6 +29,17 @@ class SMA:
         return sma
 
 
+class Volatility:
+    def __init__(self, window=30):
+        self.window = window
+
+    def transform(self, data: pd.DataFrame):
+        volatility = data.rolling(self.window).std()
+
+        volatility = _rename_columns_after_transform(volatility, transform='volatility', attribute=str(self.window))
+        return volatility
+
+
 class EMA:
     def __init__(self, window=30):
         self.window = window
@@ -55,8 +66,7 @@ class ZScore:
 
 
 class Rank:
-    def __init__(self, window=30, ascending=False, replace_original=False):
-        self.window = window
+    def __init__(self, ascending=False, replace_original=False):
         self.ascending = ascending
         self.replace_original = replace_original
 
@@ -64,9 +74,12 @@ class Rank:
         # still need to rename columns
         if self.replace_original:
             ranked_data = data.rank(axis=1, ascending=self.ascending)
+            ranked_data = _rename_columns_after_transform(ranked_data, transform='ranked')
         else:
             ranked_data = data.rank(axis=1, ascending=self.ascending)
+            ranked_data = _rename_columns_after_transform(ranked_data, transform='ranked')
             ranked_data = pd.concat([data, ranked_data], axis=1)
+
         return ranked_data
 
 
