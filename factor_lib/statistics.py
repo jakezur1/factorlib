@@ -79,10 +79,10 @@ class Statistics:
         return factor_significances
 
     def compute_correlations(self):
-        new_df = pd.DataFrame()
-        for ticker in self.testing_model.tickers:
-            new_df = pd.concat(new_df, self.testing_model.factors[ticker])
-        corr = new_df.corr('spearman')
+        new_df = self.testing_model.factors[self.testing_model.tickers[0]].corr()
+        for ticker in self.testing_model.tickers[1:]:
+            new_df.add(self.testing_model.factors[ticker].corr())
+        corr = new_df / len(self.testing_model.tickers)
         corr.style.background_gradient(cmap='coolwarm')
         return corr
 
