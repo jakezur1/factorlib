@@ -8,7 +8,7 @@ import numpy as np
 import yfinance as yf
 import quantstats as qs
 from typing import Literal
-from factor_lib.factor import Factor, yf_intervals
+from factorlib.factor import Factor, yf_intervals
 # from atom import ATOMClassifier
 from xgboost import XGBRegressor
 import warnings
@@ -161,7 +161,7 @@ class FactorModel:
         portfolio_returns = returns_per_stock.sum(axis=1)
 
         # importing here to avoid circular import
-        from factor_lib.statistics import Statistics
+        from factorlib.statistics import Statistics
         return Statistics(portfolio_returns, self, predicted_returns=predicted_returns, stock_returns=returns)
 
     def _get_positions(self, row, k, long_pct):

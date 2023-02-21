@@ -5,9 +5,9 @@ import numpy as np
 import yfinance as yf
 import getFamaFrenchFactors as gff
 from datetime import datetime
-from factor_lib.factor_model import FactorModel
-from factor_lib.factor import Factor
-from factor_lib.transforms import *
+from factorlib.factor_model import FactorModel
+from factorlib.factor import Factor
+from factorlib.transforms import *
 
 interval = 'M'
 start = '2002-01-01'

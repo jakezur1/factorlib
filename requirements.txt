@@ -18,3 +18,4 @@ pyarrow
 cloudpickle
 prettytable
 ipython
+Jupyter
