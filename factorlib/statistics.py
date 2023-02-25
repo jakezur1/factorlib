@@ -147,11 +147,6 @@ class Statistics:
         statsTable.add_row(volatility)
         print(statsTable)
 
-    def _get_random_positions(self, row, k):
-        indices = np.argsort(row)
-        random.shuffle(indices)
-
-        # calculate long weights, must equal 1
         long_weights = np.random.random(len(indices))
         long_weights /= (np.sum(long_weights))
 
