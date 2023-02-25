@@ -3,6 +3,7 @@ import os
 import pandas as pd
 import numpy as np
 import yfinance as yf
+from datetime import datetime, timedelta
 import getFamaFrenchFactors as gff
 from datetime import datetime
 from factorlib.factor_model import FactorModel
@@ -77,6 +78,7 @@ sma_12 = Factor(tickers=new_tickers, interval=interval, data=returns_data, price
 sma_150 = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True, name='sma_150',
                  transforms=[SMA(window=150).transform])
 
+
 # momentum here is just taking the diff over the last X window
 price_momentum_diff = Factor(tickers=new_tickers, interval=interval, data=returns_data,
                              price_data=True, name='momentum_60', transforms=[Momentum(window=60).transform])
@@ -124,9 +126,10 @@ model.add_factor(medium_momentum_diff)
 # model.add_factor(time_decomposition)
 
 print('Fitting Alpha Factor Model...')
-model.fit(returns_data.loc[datetime(2002, 1, 1):datetime(2022, 11, 1)],
-          'xgb', time='t+1', subsample=0.8, reg_lambda=1.2, reg_alpha=0.5)
-statistics = model.backtest(datetime(2014, 1, 1), datetime(2022, 11, 1), returns=returns_data, long_pct=1)
+# model.fit(returns_data.loc[datetime(2002, 1, 1):datetime(2022, 11, 1)],
+#           'xgb', time='t+1', subsample=0.8, reg_lambda=1.2, reg_alpha=0.5)
+# statistics = model.backtest(datetime(2014, 1, 1), datetime(2022, 11, 1), returns=returns_data, long_pct=1)
+statistics = model.wfo(returns_data, train_date=datetime(2014, 1, 1), train_interval=timedelta(days=365), long_pct=0.5)
 statistics.find_factor_significance()
 statistics.print_statistics_report()
 # statistics.get_full_qs()

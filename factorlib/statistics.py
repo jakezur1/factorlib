@@ -8,22 +8,7 @@ from .factor_model import FactorModel
 from scipy import stats
 import random
 from prettytable import PrettyTable
-
-qs_intervals = {
-    '1m': 525600,
-    '5m': 105120,
-    '15m': 35040,
-    '30m': 17520,
-    '60m': 8760,
-    '90m': 5840,
-    '1h': 4380,
-    'D': 365,
-    '5D': 73,
-    'W': 52,
-    'M': 12,
-    '3M': 4,
-    'Y': 1
-}
+from .utils import timedelta_intervals
 
 
 class Statistics:
@@ -83,11 +68,11 @@ class Statistics:
             self.all_returns.extend(extra_baselines)
 
     def get_full_qs(self):
-        qs.reports.full(self.portfolio_returns, periods_per_year=qs_intervals[self.testing_model.interval])
+        qs.reports.full(self.portfolio_returns, periods_per_year=timedelta_intervals[self.testing_model.interval])
 
     def get_html(self):
         qs.reports.html(self.portfolio_returns, output='factor_model.html',
-                        periods_per_year=qs_intervals[self.testing_model.interval])
+                        periods_per_year=timedelta_intervals[self.testing_model.interval])
 
     def find_factor_significance(self):
         factor_significances = []
@@ -130,12 +115,12 @@ class Statistics:
         volatility = ['volatility']
         print('Spearman correlation: ' + str(self.compute_spearman_rank()))
         for returns in self.all_returns:
-            sharpe.append(round(returns.sharpe(periods=qs_intervals[self.testing_model.interval]).values[0], 3))
-            sortino.append(round(returns.sortino(periods=qs_intervals[self.testing_model.interval]).values[0], 3))
+            sharpe.append(round(returns.sharpe(periods=timedelta_intervals[self.testing_model.interval]).values[0], 3))
+            sortino.append(round(returns.sortino(periods=timedelta_intervals[self.testing_model.interval]).values[0], 3))
             cagr.append(str(round(returns.cagr().values[0] * 100, 2)) + '%')
             avg_rtn.append(str(round(returns.avg_return().values[0] * 100, 2)) + '%')
             max_drawdown.append(str(round(returns.max_drawdown().values[0] * 100, 2)) + '%')
-            volatility.append(str(round(returns.volatility(periods=qs_intervals[self.testing_model.interval])
+            volatility.append(str(round(returns.volatility(periods=timedelta_intervals[self.testing_model.interval])
                                         .values[0] * 100, 2)) + '%')
 
         statsTable.add_row(t_tests)
@@ -155,12 +140,12 @@ class Statistics:
         long_weights = np.random.random(len(indices))
         long_weights /= (np.sum(long_weights))
 
-        bottomk = indices[:k]
-        topk = indices[-k:]
+        bottom_k = indices[:k]
+        top_k = indices[-k:]
         positions = [0] * len(row)
-        for index, i in enumerate(topk):
+        for index, i in enumerate(top_k):
             positions[i] = (1 / k) * long_weights[index]
-        for index, i in enumerate(bottomk):
+        for index, i in enumerate(bottom_k):
             positions[i] = round((-1 / k) * (1 - long_weights[index]), 2)
 
         return pd.Series(positions, index=self.testing_model.tickers)
