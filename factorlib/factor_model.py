@@ -4,20 +4,24 @@ from typing import Literal
 import numpy as np
 import pandas as pd
 import yfinance as yf
+from datetime import datetime, timedelta
 from sklearn.ensemble import *
 from statsmodels.regression.rolling import RollingOLS
 from xgboost import XGBRegressor
 
-from .factor import Factor, yf_intervals
+from .factor import Factor
+from .utils import _delocalize_datetime, _shift_by_time_step, _align_by_date_index, _clean_data, \
+    timedelta_intervals, yf_intervals
 
 warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
-
 
 ModelType = Literal['hgb', 'gbr', 'adaboost', 'rf', 'et', 'linear', 'voting', 'xgb']
 
 
 class FactorModel:
-    def __init__(self, tickers=['AAPL', 'MSFT', 'TSLA'], interval='D'):
+    def __init__(self, tickers=None, interval='D'):
+        assert tickers is not None, 'tickers cannot be None'
+
         self.tickers = tickers
         self.interval = interval
         self.factors = pd.DataFrame(columns=pd.MultiIndex.from_product([tickers, []]))
@@ -27,43 +31,88 @@ class FactorModel:
         assert set(self.tickers).issubset(set(factor.tickers)), 'Factor tickers must include model tickers'
         self.factors = pd.concat([self.factors, factor.data], axis=1)
 
+    def predict(self, factors: pd.DataFrame):
+        return self.model.predict(factors)
+
+    def wfo(self, returns: pd.DataFrame, train_date: datetime, train_interval: timedelta,
+            anchored=True,
+            k=10,
+            long_pct=0.5,
+            time='t+1', **kwargs):
+
+        # shift returns back by 'time' time steps
+        returns = _shift_by_time_step(time, returns)
+
+        # ensure that index is datetime and delocalized
+        returns = _delocalize_datetime(returns)
+
+        # align factor dates to be at the latest first date and earliest last date
+        _, returns = _align_by_date_index(self.factors, returns)
+
+        start_date = train_date
+        end_date = train_date + train_interval
+        self.model = XGBRegressor(n_jobs=-1, **kwargs)
+
+        # perform walk forest optimization on factors data and record expected returns
+        # at each time step
+        expected_returns = pd.DataFrame()
+        while end_date < self.factors.index[-1]:
+            X_train = pd.DataFrame()
+            y_train = pd.Series(dtype=object)
+            for ticker in self.tickers:
+                X_train = pd.concat([X_train, self.factors[ticker].loc[start_date:end_date]], axis=0)
+                y_train = pd.concat([y_train, returns[ticker].loc[start_date:end_date]], axis=0)
+
+            X_train, y_train = _clean_data(X_train, y_train)
+
+            self.model.fit(X_train, y_train)
+            test_end = end_date + timedelta_intervals[self.interval]
+
+            for ticker in self.tickers:
+                expected_returns[ticker] = self.model.predict(self.factors[ticker].loc[test_end]).flatten()
+                expected_returns.index = self.factors[ticker].loc[test_end].index
+            expected_returns = pd.concat([expected_returns, returns[ticker].loc[test_end]], axis=0)
+
+            # calculate new intervals to train
+            if anchored:
+                end_date = test_end
+                end_date += timedelta_intervals[self.interval]
+            else:
+                start_date = end_date
+                end_date += timedelta_intervals[self.interval]
+            start_date = end_date
+            end_date = end_date + train_interval
+
+        # get positions
+        positions = expected_returns.apply(self._get_positions, axis=1,
+                                           args=(min(k, len(self.tickers) // 2), long_pct))
+        positions.index = positions.index.tz_localize(None)
+
+        # align positions and returns
+        positions, returns = _align_by_date_index(positions, returns)
+
+        # calculate back tested returns
+        returns_per_stock = returns.mul(positions.shift(1))  # you have to shift positions by 1 day
+        portfolio_returns = returns_per_stock.sum(axis=1)
+
+        # importing here to avoid circular import
+        from .statistics import Statistics
+        return Statistics(portfolio_returns, self, predicted_returns=expected_returns, stock_returns=returns)
+
     def fit(self, returns: pd.DataFrame, model: ModelType, voting_models=None,
-            time='t',
+            time='t+1',
             window=60,
             random_state=42,
             test_split=0.3, **kwargs):
 
-        # Set up Training Data
-        value = time.split('t+')
-        if len(value) > 0:
-            shift = value[1]
-            returns = returns.shift(-1 * int(shift)) # shift returns back
-        else:
-            returns = returns
+        # shift returns back by 'time' time steps
+        returns = _shift_by_time_step(time, returns)
 
+        # ensure that index is datetime and delocalized
+        returns = _delocalize_datetime(returns)
 
-
-        try:
-            returns.index = pd.to_datetime(returns.index)
-        except Exception as e:
-            print(f'could not convert index to datetime of returns, moving on.')
-
-        try:
-            returns.index = returns.index.tz_localize(None)
-        except Exception as e:
-            print(f'could not localize index of returns, moving on.')
-
-        # align factor dates to be at the latest first date and earliest last date, so all values are accounted for
-        # self.factors.dropna(inplace=True)
-        valid_dates = self.factors.index
-        if valid_dates[0] < returns.index[0]:
-            valid_dates = valid_dates[valid_dates >= returns.index[0]]
-        if valid_dates[-1] > returns.index[-1]:
-            valid_dates = valid_dates[valid_dates <= returns.index[-1]]
-
-        returns = returns.loc[valid_dates]
-        returns = returns.to_period('D').to_timestamp()
-        returns.index = pd.to_datetime(returns.index)
+        # align factor dates to be at the latest first date and earliest last date
+        _, returns = _align_by_date_index(self.factors, returns)
         dates = returns.index
 
         # dates_train, dates_test = train_test_split(dates, test_size=test_split, random_state=42, shuffle=True)
@@ -71,9 +120,6 @@ class FactorModel:
         # X_test = pd.DataFrame()
         y_train = pd.Series(dtype=float)
         # y_test = pd.Series(dtype=float)
-
-        train_returns_concatenated = pd.Series(dtype=object)
-        # test_returns_concatenated = pd.Series(dtype=object)
         for ticker in self.tickers:
             X_train = pd.concat([X_train, self.factors[ticker].loc[dates]], axis=0)
             y_train = pd.concat([y_train, returns[ticker].loc[dates]], axis=0)
@@ -81,20 +127,8 @@ class FactorModel:
             # X_test = pd.concat([X_test, self.factors[ticker].loc[dates_test]], axis=0)
             # y_test = pd.concat([y_test, returns[ticker].loc[dates_test]], axis=0)
 
-            train_returns_concatenated = pd.concat([train_returns_concatenated, returns[ticker].loc[dates]], axis=0)
-            # test_returns_concatenated = pd.concat([test_returns_concatenated, returns[ticker].loc[dates_test]], axis=0)
-
-        X_train['returns'] = train_returns_concatenated
-        X_train = X_train.dropna()
-        y_train = X_train['returns']
-        X_train.drop('returns', axis=1, inplace=True)
-
-        # X_test['returns'] = test_returns_concatenated
-        # X_test = X_test.dropna()
-        # y_test = X_test['returns']
-        # X_test.drop('returns', axis=1, inplace=True)
-
-        X_train.replace([np.inf, -np.inf], 0, inplace=True)
+        X_train, y_train = _clean_data(X_train, y_train)
+        # X_test, y_test = _clean_data(X_test, y_test)
 
         if model == 'linear':
             self.model = RollingOLS(y_train, X_train, window=window).fit()
@@ -110,9 +144,6 @@ class FactorModel:
         print(f'model score on train: {self.model.score(X_train, y_train)}')
         # print(f'model score on test: {self.model.score(X_test, y_test)}')
         return self.model
-
-    def predict(self, factors: pd.DataFrame):
-        return self.model.predict(factors)
 
     def backtest(self, start_date, end_date, returns=None, candidates=None, k=10, long_pct=0.5):
 
@@ -165,13 +196,13 @@ class FactorModel:
 
     def _get_positions(self, row, k, long_pct):
         indices = np.argsort(row) # sorted in ascending order
-        bottomk = indices[:k]
-        topk = indices[-k:]
+        bottom_k = indices[:k]
+        top_k = indices[-k:]
         positions = [0] * len(row)
 
-        for i in topk:
+        for i in top_k:
             positions[i] = (1 / k) * long_pct
-        for i in bottomk:
+        for i in bottom_k:
             positions[i] = round((-1 / k) * (1 - long_pct), 2)
 
         return pd.Series(positions, index=self.tickers)

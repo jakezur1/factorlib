@@ -1,23 +1,7 @@
 import pandas as pd
 import numpy as np
 import yfinance as yf
-
-yf_intervals = {
-    '1m': '1m',
-    '2m': '2m',
-    '5m': '5m',
-    '15m': '15m',
-    '30m': '30m',
-    '60m': '60m',
-    '90m': '90m',
-    '1h': '1h',
-    'D': '1d',
-    '5D': '5d',
-    'W': '1wk',
-    'M': '1mo',
-    '3M': '3mo',
-}
-
+from .transforms import yf_intervals
 
 class Factor:
     def __init__(self, tickers: list, name: str = None, data: pd.DataFrame = None,
