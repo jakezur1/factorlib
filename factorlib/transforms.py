@@ -5,7 +5,6 @@ from pykalman import KalmanFilter as kf
 from scipy.signal import butter, lfilter, medfilt
 from scipy.ndimage import gaussian_filter
 import statsmodels.api as sm
-from utils import _rename_columns_after_transform
 
 # TODO: Avellanada PCA transformation
 # TODO: signature transformation from https://kormilitzin.github.io/the-signature-method-in-machine-learning/
@@ -215,3 +214,10 @@ class TimeDecomposition:
         residual_decomposition = _rename_columns_after_transform(residual_decomposition, transform='resid_decomp')
         time_decomposition = pd.concat([trend_decomposition, seasonal_decomposition, residual_decomposition], axis=1)
         return time_decomposition
+
+
+def _rename_columns_after_transform(data, transform, attribute=''):
+    new_columns = [column + '_' + transform + attribute for column in data.columns.get_level_values(1)]
+    new_columns = dict(zip(data.columns.get_level_values(1), new_columns))
+    data.rename(columns=new_columns, inplace=True, level=1)
+    return data

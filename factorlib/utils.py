@@ -2,12 +2,12 @@ import inspect
 import numpy as np
 import pandas as pd
 
-
-def _rename_columns_after_transform(data, transform, attribute=''):
-    new_columns = [column + '_' + transform + attribute for column in data.columns.get_level_values(1)]
-    new_columns = dict(zip(data.columns.get_level_values(1), new_columns))
-    data.rename(columns=new_columns, inplace=True, level=1)
-    return data
+__all__ = ['_delocalize_datetime',
+           '_shift_by_time_step',
+           '_align_by_date_index',
+           '_clean_data',
+           'timedelta_intervals',
+           'yf_intervals']
 
 
 def _get_defining_class(meth):
@@ -53,22 +53,27 @@ def _align_by_date_index(df1: pd.DataFrame, df2: pd.DataFrame):
     if valid_dates[-1] > df2.index[-1]:
         valid_dates = valid_dates[valid_dates <= df2.index[-1]]
 
+    df1 = df1.loc[valid_dates]
+    df1 = df2.to_period('D').to_timestamp()
+    df1.index = pd.to_datetime(df1.index)
+
     df2 = df2.loc[valid_dates]
     df2 = df2.to_period('D').to_timestamp()
     df2.index = pd.to_datetime(df2.index)
 
-    df1 = df1.loc[valid_dates]
-    df1 = df2.to_period('D').to_timestamp()
-    df1.index = pd.to_datetime(df1.index)
-    return df2
+    return df1, df2
 
 
-def _clean_data(X: pd.DataFrame, y: pd.Series):
+def _clean_data(X: pd.DataFrame, y: pd.Series, drop_columns=False, col_thresh=0.5):
+    if drop_columns:
+        num_values_required = len(X) * (1 - col_thresh)
+        X.dropna(axis=1, thresh=num_values_required, inplace=True)
     X['returns'] = y
     X.dropna(inplace=True)
     y = X['returns']
     X.drop('returns', axis=1, inplace=True)
     X.replace([np.inf, -np.inf], 0, inplace=True)
+    print(X.iloc[:1000].to_string())
     return X, y
 
 

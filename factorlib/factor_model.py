@@ -1,6 +1,6 @@
 import warnings
 from typing import Literal
-
+from tqdm import tqdm
 import numpy as np
 import pandas as pd
 import yfinance as yf
@@ -10,8 +10,7 @@ from statsmodels.regression.rolling import RollingOLS
 from xgboost import XGBRegressor
 
 from .factor import Factor
-from .utils import _delocalize_datetime, _shift_by_time_step, _align_by_date_index, _clean_data, \
-    timedelta_intervals, yf_intervals
+from .utils import *
 
 warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 
@@ -62,11 +61,13 @@ class FactorModel:
             for ticker in self.tickers:
                 X_train = pd.concat([X_train, self.factors[ticker].loc[start_date:end_date]], axis=0)
                 y_train = pd.concat([y_train, returns[ticker].loc[start_date:end_date]], axis=0)
-
-            X_train, y_train = _clean_data(X_train, y_train)
+            X_train, y_train = _clean_data(X_train, y_train, drop_columns=True)
 
             self.model.fit(X_train, y_train)
-            test_end = end_date + timedelta_intervals[self.interval]
+
+            test_end = end_date + timedelta(minutes=(525600 / timedelta_intervals[self.interval]))
+            test_end = pd.to_datetime(test_end).to_period('D').to_timestamp()
+            test_end = pd.to_datetime(test_end)
 
             for ticker in self.tickers:
                 expected_returns[ticker] = self.model.predict(self.factors[ticker].loc[test_end]).flatten()
@@ -75,13 +76,16 @@ class FactorModel:
 
             # calculate new intervals to train
             if anchored:
-                end_date = test_end
-                end_date += timedelta_intervals[self.interval]
+                end_date += timedelta(minutes=(525600 / timedelta_intervals[self.interval]))
+                end_date = pd.to_datetime(end_date).to_period('D').to_timestamp()
+                end_date = pd.to_datetime(end_date)
             else:
-                start_date = end_date
-                end_date += timedelta_intervals[self.interval]
-            start_date = end_date
-            end_date = end_date + train_interval
+                start_date += timedelta(minutes=(525600 / timedelta_intervals[self.interval]))
+                start_date = pd.to_datetime(start_date).to_period('D').to_timestamp()
+                start_date = pd.to_datetime(start_date)
+                end_date += timedelta(minutes=(525600 / timedelta_intervals[self.interval]))
+                end_date = pd.to_datetime(end_date).to_period('D').to_timestamp()
+                end_date = pd.to_datetime(end_date)
 
         # get positions
         positions = expected_returns.apply(self._get_positions, axis=1,
@@ -145,7 +149,22 @@ class FactorModel:
         # print(f'model score on test: {self.model.score(X_test, y_test)}')
         return self.model
 
-    def backtest(self, start_date, end_date, returns=None, candidates=None, k=10, long_pct=0.5):
+    def predict(self, factors: pd.DataFrame):
+        return self.model.predict(factors)
+
+    def backtest(self, start_date, end_date, returns=None, wfo=True, training_start_date=None, candidates=None, k=10, long_pct=0.5):
+        if returns is None:
+            stocks_data = yf.download(self.tickers, start=start_date, end=end_date,
+                                      interval=yf_intervals[self.interval])['Adj Close']
+            stocks_data.index = pd.to_datetime(stocks_data.index)
+            stocks_data.fillna(value=0, inplace=True)
+            returns = stocks_data.pct_change(1)
+            returns.dropna(inplace=True)
+            returns.index = pd.to_datetime(returns.index).tz_localize(None)
+        else:
+            returns = returns.loc[start_date:end_date]
+
+        returns.index = pd.to_datetime(returns.index)
 
         expected_returns = pd.DataFrame()
         for ticker in self.tickers:
@@ -163,29 +182,19 @@ class FactorModel:
             expected_returns = expected_returns * binary_mask
 
         # positions are predicted one day before
+
         print("Expected Returns:")
         print(expected_returns)
         positions = expected_returns.apply(self._get_positions, axis=1,
                                            args=(min(k, len(self.tickers) // 2), long_pct))
         positions.index = positions.index.tz_localize(None)
 
-        if returns is None:
-            stocks_data = yf.download(self.tickers, start=start_date, end=end_date,
-                                      interval=yf_intervals[self.interval])['Adj Close']
-            stocks_data.index = pd.to_datetime(stocks_data.index)
-            stocks_data.fillna(value=0, inplace=True)
-            returns = stocks_data.pct_change(1)
-            returns.dropna(inplace=True)
-            returns.index = pd.to_datetime(returns.index).tz_localize(None)
-        else:
-            returns = returns.loc[start_date:end_date]
+        positions.index = returns.index
+
         if returns.index[0] > positions.index[0]:
             positions = positions.loc[returns.index[0]:returns.index[-1]]
         else:
             returns = returns.loc[positions.index[0]:positions.index[-1]]
-
-        returns.index = pd.to_datetime(returns.index)
-        positions.index = returns.index
 
         returns_per_stock = returns.mul(positions.shift(1))  # you have to shift positions by 1 day
         portfolio_returns = returns_per_stock.sum(axis=1)
