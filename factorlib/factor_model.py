@@ -86,6 +86,7 @@ class FactorModel:
             print('Took', time.time() - start, 'seconds to fit model')
 
             # get predictions
+            # this is our OOS sample test (that's one month ahead)
             start = time.time()
             test_end = self.offset_datetime(end_date)
             test_end = pd.to_datetime(test_end).to_period('D').to_timestamp()
@@ -116,7 +117,7 @@ class FactorModel:
         expected_returns_index = np.array(expected_returns_index, dtype='datetime64[D]')
         expected_returns_index = np.unique(expected_returns_index)
         expected_returns.index = expected_returns_index
-        print('Expeted returns: ')
+        print('Expected returns: ')
         print(f'{expected_returns}\n')
 
         # get positions

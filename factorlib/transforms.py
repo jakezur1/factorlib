@@ -6,12 +6,20 @@ from scipy.signal import butter, lfilter, medfilt
 from scipy.ndimage import gaussian_filter
 import statsmodels.api as sm
 
+
 # TODO: Avellanada PCA transformation
 # TODO: signature transformation from https://kormilitzin.github.io/the-signature-method-in-machine-learning/
 
 
 def log_transform(data: pd.DataFrame):
     logged_data = np.log(data)
+
+    logged_data = _rename_columns_after_transform(logged_data, transform='logged')
+    return logged_data
+
+
+def log_diff_transform(data: pd.DataFrame):
+    logged_data = np.log(data) - np.log(data.shift(1))
 
     logged_data = _rename_columns_after_transform(logged_data, transform='logged')
     return logged_data
