@@ -63,7 +63,7 @@ indices_factor = Factor(tickers=new_tickers, interval=interval, data=indices_ret
 
 # Returns / Price Factors
 log_prices = Factor(tickers=new_tickers, interval=interval, data=stocks_data, price_data=True, name='log_prices',
-                    transforms=[log_transform])
+                    transforms=[log_diff_transform])
 ranked_returns = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True, name='ranked_returns',
                         transforms=[Rank(replace_original=True).transform])
 ranked_volatility = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True, name='ranked_volatility',
