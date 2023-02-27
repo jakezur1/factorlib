@@ -246,7 +246,7 @@ class FactorModel:
         for i in top_k:
             positions[i] = (1 / k) * long_pct
         for i in bottom_k:
-            positions[i] = round((-1 / k) * (1 - long_pct), 2)
+            positions[i] = (-1 / k) * (1 - long_pct)
 
         return pd.Series(positions, index=self.tickers)
 
