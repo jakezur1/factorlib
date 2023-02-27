@@ -87,10 +87,14 @@ class FactorModel:
 
             # get predictions
             start = time.time()
+            test_end = self.offset_datetime(end_date)
+            test_end = pd.to_datetime(test_end).to_period('D').to_timestamp()
+            test_end = pd.to_datetime(test_end)
+            test_end = _get_end_convention(test_end, self.interval)
 
             curr_predictions = pd.DataFrame()
             for ticker in self.tickers:
-                prediction_data = self.factors[ticker][valid_columns].loc[end_date].to_frame().T
+                prediction_data = self.factors[ticker][valid_columns].loc[test_end].to_frame().T
                 curr_predictions[ticker] = self.model.predict(prediction_data).flatten()
                 expected_returns_index.append(prediction_data.index)
             expected_returns = pd.concat([expected_returns, curr_predictions], axis=0)
