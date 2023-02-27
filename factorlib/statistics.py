@@ -110,7 +110,7 @@ class Statistics:
 
         t_tests = ['paired t-test']
         t_tests.extend(self.find_factor_significance())
-        cum_returns = 'cum. returns'
+        cum_returns = ['cum. returns']
         sharpe = ['sharpe']
         sortino = ['sortino']
         cagr = ['cagr']
@@ -120,9 +120,7 @@ class Statistics:
         win_rate = ['win rate']
         print('Spearman correlation: ' + str(self.compute_spearman_rank()))
         for returns in self.all_returns:
-            print(returns.sum())
-            print(returns.sum().values[0])
-            returns.append(returns.sum().values[0])
+            cum_returns.append(round(returns.sum().values[0] * 100, 2))
             sharpe.append(round(returns.sharpe(periods=timedelta_intervals[self.testing_model.interval]).values[0], 3))
             sortino.append(round(returns.sortino(periods=timedelta_intervals[self.testing_model.interval]).values[0], 3))
             cagr.append(str(round(returns.cagr().values[0] * 100, 2)) + '%')
@@ -130,10 +128,9 @@ class Statistics:
             max_drawdown.append(str(round(returns.max_drawdown().values[0] * 100, 2)) + '%')
             volatility.append(str(round(returns.volatility(periods=timedelta_intervals[self.testing_model.interval])
                                         .values[0] * 100, 2)) + '%')
-
             win_rate.append(str(round(returns.win_rate().values[0] * 100, 2)) + '%')
 
-        statsTable.add_row(sharpe)
+        statsTable.add_row(cum_returns)
         statsTable.add_row(sharpe)
         statsTable.add_row(sortino)
         statsTable.add_row(cagr)
