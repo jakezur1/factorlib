@@ -82,12 +82,12 @@ sma_30 = Factor(tickers=new_tickers, interval=interval, data=returns_data, price
                  transforms=[SMA(window=30).transform])
 
 # momentum here is just taking the diff over the last X window
-price_momentum_diff = Factor(tickers=new_tickers, interval=interval, data=returns_data,
-                             price_data=True, name='momentum_60', transforms=[Momentum(window=60).transform])
-short_momentum_diff = Factor(tickers=new_tickers, interval=interval, data=returns_data,
-                             price_data=True, name='momentum_10', transforms=[Momentum(window=10).transform])
-medium_momentum_diff = Factor(tickers=new_tickers, interval=interval, data=returns_data,
-                              price_data=True, name='momentum_30', transforms=[Momentum(window=30).transform])
+price_momentum_diff = Factor(tickers=new_tickers, interval=interval, data=stocks_data,
+                             price_data=True, name='momentum_60', transforms=[Momentum(window=60, pct_change=True).transform])
+short_momentum_diff = Factor(tickers=new_tickers, interval=interval, data=stocks_data,
+                             price_data=True, name='momentum_10', transforms=[Momentum(window=10, pct_change=True).transform])
+medium_momentum_diff = Factor(tickers=new_tickers, interval=interval, data=stocks_data,
+                              price_data=True, name='momentum_30', transforms=[Momentum(window=30, pct_change=True).transform])
 
 # kalman_filter = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True, name='kalman_filter',
 #                        transforms=[KalmanFilter().transform])
