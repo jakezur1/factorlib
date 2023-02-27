@@ -125,9 +125,9 @@ class FactorModel:
             curr_predictions = pd.DataFrame()
             for ticker in self.tickers:
                 prediction_data = self.factors[ticker][valid_columns].loc[test_end].to_frame().T
-                if prediction_data.isna().sum().sum() >= 1:
-                    curr_predictions[ticker] = np.nan
-                    continue
+                # if prediction_data.isna().sum().sum() >= 1:
+                #     curr_predictions[ticker] = np.nan
+                #     continue
                 curr_predictions[ticker] = self.model.predict(prediction_data).flatten()
                 expected_returns_index.append(prediction_data.index)
             expected_returns = pd.concat([expected_returns, curr_predictions], axis=0)

@@ -78,8 +78,8 @@ sma_6 = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_
                transforms=[SMA(window=6).transform])
 sma_12 = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True, name='sma_12',
                 transforms=[SMA(window=12).transform])
-sma_150 = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True, name='sma_150',
-                 transforms=[SMA(window=150).transform])
+sma_30 = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True, name='sma_30',
+                 transforms=[SMA(window=30).transform])
 
 # momentum here is just taking the diff over the last X window
 price_momentum_diff = Factor(tickers=new_tickers, interval=interval, data=returns_data,
@@ -114,7 +114,7 @@ model.add_factor(volatility)
 # model.add_factor(ranked_volatility)
 # model.add_factor(stock_vol)
 model.add_factor(sma_12)
-model.add_factor(sma_150)
+model.add_factor(sma_30)
 model.add_factor(fundamentals)
 model.add_factor(price_momentum_diff)
 model.add_factor(short_momentum_diff)
