@@ -16,6 +16,9 @@ class Factor:
 
         try:
             self.data.index = pd.to_datetime(self.data.index)
+            self.start = self.data.index[0]
+            self.end = self.data.index[-1]
+
         except Exception as e:
             print(f'could not convert index to datetime of factor {self.name}, moving on.')
 

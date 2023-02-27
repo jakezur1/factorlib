@@ -26,15 +26,30 @@ class FactorModel:
         self.interval = interval
         self.factors = pd.DataFrame(columns=pd.MultiIndex.from_product([tickers, []]))
         self.model = None
+        self.earliest_start = None
+        self.latest_end = None
 
     def add_factor(self, factor: Factor, replace=False):
         assert set(self.tickers).issubset(set(factor.tickers)), 'Factor tickers must include model tickers'
         self.factors = pd.concat([self.factors, factor.data], axis=1)
 
+        # set the maximum bounds for a wfo or a backtest
+        if self.earliest_start is None:
+            self.earliest_start = factor.start
+        else:
+            if self.earliest_start < factor.start:
+                self.earliest_start = factor.start
+        if self.latest_end is None:
+            self.latest_end = self.factors.end
+        else:
+            if self.latest_end > factor.end:
+                self.latest_end = factor.end
+
     def predict(self, factors: pd.DataFrame):
         return self.model.predict(factors)
 
-    def wfo(self, returns: pd.DataFrame, train_date: datetime, train_interval: timedelta,
+    def wfo(self, returns: pd.DataFrame, train_interval: timedelta,
+            start_date: datetime = None, end_date: datetime = None,
             anchored=True,
             k=10,
             long_pct=0.5,
@@ -43,7 +58,17 @@ class FactorModel:
         assert (self.interval == 'D' or self.interval == 'W' or self.interval == 'M' or self.interval == 'Y'), \
             'Walk forward optimization currently only supports daily, weekly, monthly, or yearly intervals'
 
-        train_date = _get_end_convention(train_date, self.interval)
+        if start_date is not None:
+            assert(start_date > self.earliest_start, 'start_date must be after earliest start date '
+                                                     '(based on the data provided)')
+        else:
+            start_date = self.earliest_start
+        if end_date is not None:
+            assert(end_date < self.latest_end, 'end_date must be before latest end date')
+        else:
+            end_date = self.latest_end
+
+        train_date = _get_end_convention(start_date, self.interval)
 
         # shift returns back by 'time' time steps
         shifted_returns = _shift_by_time_step(pred_time, returns)
@@ -240,9 +265,10 @@ class FactorModel:
         from .statistics import Statistics
         return Statistics(portfolio_returns, self, predicted_returns=predicted_returns, stock_returns=returns)
 
-    def _get_positions(self, row, k, long_pct):
+    def _get_positions(self, row, k_pct, long_pct):
         num_nans = row.isna().sum() # remove all nans
         indices = np.argsort(row)[:-num_nans]  # sorted in ascending order
+        k = int(len(indices) * k_pct)
         bottom_k = indices[:k]
         top_k = indices[-k:]
         positions = [0] * len(row)
