@@ -68,6 +68,9 @@ ranked_returns = Factor(tickers=new_tickers, interval=interval, data=returns_dat
 ranked_volatility = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True,
                            name='ranked_volatility',
                            transforms=[Volatility(window=60).transform, Rank(replace_original=True).transform])
+volatility = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True,
+                           name='vols',
+                           transforms=[Volatility(window=60).transform])
 stock_vol = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True, name='stock_vol')
 sma_3 = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True, name='sma_3',
                transforms=[SMA(window=3).transform])
@@ -107,6 +110,7 @@ model.add_factor(indices_factor)
 # model.add_factor(ranked_returns)
 model.add_factor(sma_3)
 model.add_factor(sma_6)
+model.add_factor(volatility)
 # model.add_factor(ranked_volatility)
 # model.add_factor(stock_vol)
 model.add_factor(sma_12)
@@ -129,7 +133,7 @@ print('Fitting Alpha Factor Model...')
 #           'xgb', time='t+1', subsample=0.8, reg_lambda=1.2, reg_alpha=0.5)
 # statistics = model.backtest(datetime(2014, 1, 1), datetime(2022, 11, 1), returns=returns_data, long_pct=1)
 statistics = model.wfo(returns_data, train_interval=timedelta(days=252 * 5),
-                       k=5, subsample=0.5, max_depth=3, colsample_bytree=0.5, reg_alpha=0.2)
+                       anchored=False, k=5, subsample=0.5, max_depth=3, colsample_bytree=0.5, reg_alpha=0.2)
 statistics.find_factor_significance()
 statistics.print_statistics_report()
 statistics.get_full_qs()
