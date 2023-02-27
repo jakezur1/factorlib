@@ -91,11 +91,16 @@ class Rank:
 
 
 class Momentum:
-    def __init__(self, window=30):
+    def __init__(self, window=30, pct_change=False):
         self.window = window
+        self.pct_change = pct_change
+        
 
     def transform(self, data):
-        momentum = data.diff(self.window)
+        if self.pct_change:
+            momentum = data.pct_change(self.window)
+        else:
+            momentum = data.diff(self.window)
         momentum = _rename_columns_after_transform(momentum, transform='momentum', attribute=str(self.window))
         return momentum
 
