@@ -52,7 +52,7 @@ class FactorModel:
             start_date: datetime = None,
             end_date: datetime = None,
             anchored=True,
-            k_pct=0.2,
+            k=100,
             long_pct=0.5,
             pred_time='t+1', **kwargs):
 
@@ -103,7 +103,7 @@ class FactorModel:
             for ticker in self.tickers:
                 X_train = pd.concat([X_train, self.factors[ticker].loc[training_start:training_end]], axis=0)
                 y_train = pd.concat([y_train, shifted_returns[ticker].loc[training_start:training_end]], axis=0)
-            X_train, y_train = _clean_data(X_train, y_train, drop_columns=True)
+            X_train, y_train = _clean_data(X_train, y_train, drop_columns=False)
             # print('\nTook', time.time() - start, 'seconds to curate data')
 
             start = time.time()
@@ -152,7 +152,7 @@ class FactorModel:
 
         # get positions
         positions = expected_returns.apply(self._get_positions, axis=1,
-                                           args=(k_pct, long_pct))
+                                           args=(k, long_pct))
         positions.index = positions.index.tz_localize(None)
 
         # align positions and returns
@@ -272,10 +272,10 @@ class FactorModel:
         from .statistics import Statistics
         return Statistics(portfolio_returns, self, predicted_returns=predicted_returns, stock_returns=returns)
 
-    def _get_positions(self, row, k_pct, long_pct):
+    def _get_positions(self, row, k, long_pct):
         num_nans = row.isna().sum()  # remove all nans
         indices = np.argsort(row)[:-num_nans]  # sorted in ascending order
-        k = int(len(indices) * k_pct)
+        k = min(k, len(indices) // 2)
         bottom_k = indices[:k]
         top_k = indices[-k:]
         positions = [0] * len(row)
@@ -283,8 +283,7 @@ class FactorModel:
         for i in top_k:
             positions[i] = (1 / k) * long_pct
         for i in bottom_k:
-            positions[i] = (-1 / k) * (1 - long_pct)
-
+            positions[i] = (-1 / k) * (1.0 - long_pct)
         return pd.Series(positions, index=self.tickers)
 
     def _get_model(self, model, **kwargs):
