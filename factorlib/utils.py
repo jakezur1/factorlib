@@ -1,11 +1,13 @@
 import inspect
 import numpy as np
 import pandas as pd
+from datetime import datetime, timedelta
 
 __all__ = ['_delocalize_datetime',
            '_shift_by_time_step',
            '_align_by_date_index',
            '_clean_data',
+           '_get_end_convention',
            'timedelta_intervals',
            'yf_intervals']
 
@@ -54,7 +56,7 @@ def _align_by_date_index(df1: pd.DataFrame, df2: pd.DataFrame):
         valid_dates = valid_dates[valid_dates <= df2.index[-1]]
 
     df1 = df1.loc[valid_dates]
-    df1 = df2.to_period('D').to_timestamp()
+    df1 = df1.to_period('D').to_timestamp()
     df1.index = pd.to_datetime(df1.index)
 
     df2 = df2.loc[valid_dates]
@@ -73,9 +75,16 @@ def _clean_data(X: pd.DataFrame, y: pd.Series, drop_columns=False, col_thresh=0.
     y = X['returns']
     X.drop('returns', axis=1, inplace=True)
     X.replace([np.inf, -np.inf], 0, inplace=True)
-    print(X.iloc[:1000].to_string())
     return X, y
 
+
+def _get_end_convention(date: datetime, interval: str):
+    temp_df = pd.DataFrame(index=[date])
+    temp_df.index = pd.to_datetime(temp_df.index)
+    temp_df.index = temp_df.index.tz_localize(None)
+    temp_df = temp_df.resample(interval, convention='end').ffill()
+    end_convention = temp_df.index[0]
+    return end_convention
 
 timedelta_intervals = {
     '1m': 525600,

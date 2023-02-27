@@ -35,11 +35,14 @@ class Statistics:
             'buy_hold': self.buy_hold_baseline
         })
 
-        spy_prices = yf.download(tickers='SPY', start=self.portfolio_returns.index[0],
+        start_spy = self.testing_model.offset_datetime(self.portfolio_returns.index[0], -1)
+        spy_prices = yf.download(tickers='SPY', start=start_spy,
                                  end=self.portfolio_returns.index[-1])['Adj Close']
         spy_prices = spy_prices.resample(self.testing_model.interval, convention='end').ffill()
         spy_returns = spy_prices.pct_change().dropna()
-        spy_returns.index = pd.to_datetime(spy_returns.index).tz_localize(None).floor('D')
+        spy_returns.index = np.array(spy_returns.index, dtype='datetime64[D]')
+        spy_returns.index = pd.to_datetime(spy_returns.index).tz_localize(None)
+
         spy_returns = spy_returns.loc[correct_index]
         spy_returns = pd.DataFrame(data={
             'spy': spy_returns
@@ -107,14 +110,19 @@ class Statistics:
 
         t_tests = ['paired t-test']
         t_tests.extend(self.find_factor_significance())
+        cum_returns = 'cum. returns'
         sharpe = ['sharpe']
         sortino = ['sortino']
         cagr = ['cagr']
         avg_rtn = ['avg rtns']
         max_drawdown = ['max drawdown']
         volatility = ['volatility']
+        win_rate = ['win rate']
         print('Spearman correlation: ' + str(self.compute_spearman_rank()))
         for returns in self.all_returns:
+            print(returns.sum())
+            print(returns.sum().values[0])
+            returns.append(returns.sum().values[0])
             sharpe.append(round(returns.sharpe(periods=timedelta_intervals[self.testing_model.interval]).values[0], 3))
             sortino.append(round(returns.sortino(periods=timedelta_intervals[self.testing_model.interval]).values[0], 3))
             cagr.append(str(round(returns.cagr().values[0] * 100, 2)) + '%')
@@ -123,17 +131,20 @@ class Statistics:
             volatility.append(str(round(returns.volatility(periods=timedelta_intervals[self.testing_model.interval])
                                         .values[0] * 100, 2)) + '%')
 
-        statsTable.add_row(t_tests)
+            win_rate.append(str(round(returns.win_rate().values[0] * 100, 2)) + '%')
+
+        statsTable.add_row(sharpe)
         statsTable.add_row(sharpe)
         statsTable.add_row(sortino)
         statsTable.add_row(cagr)
         statsTable.add_row(avg_rtn)
         statsTable.add_row(max_drawdown)
         statsTable.add_row(volatility)
+        statsTable.add_row(win_rate)
         print(statsTable)
 
     def _get_random_positions(self, row, k):
-        indices = np.argsort(row)
+        indices = np.argsort(row)  # ascending order
         random.shuffle(indices)
 
         # calculate long weights, must equal 1
