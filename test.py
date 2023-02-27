@@ -72,14 +72,14 @@ volatility = Factor(tickers=new_tickers, interval=interval, data=returns_data, p
                            name='vols',
                            transforms=[Volatility(window=60).transform])
 stock_vol = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True, name='stock_vol')
-sma_3 = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True, name='sma_3',
+sma_3 = Factor(tickers=new_tickers, interval=interval, data=stocks_data, price_data=True, name='sma_3',
                transforms=[SMA(window=3).transform])
-sma_6 = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True, name='sma_6',
-               transforms=[SMA(window=6).transform])
-sma_12 = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True, name='sma_12',
-                transforms=[SMA(window=12).transform])
-sma_30 = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True, name='sma_30',
-                 transforms=[SMA(window=30).transform])
+sma_6 = Factor(tickers=new_tickers, interval=interval, data=stocks_data, price_data=True, name='sma_6',
+               transforms=[SMA(window=6).transform, Momentum(window=1, pct_change=True).transform])
+sma_12 = Factor(tickers=new_tickers, interval=interval, data=stocks_data, price_data=True, name='sma_12',
+                transforms=[SMA(window=12).transform, Momentum(window=1, pct_change=True).transform])
+sma_30 = Factor(tickers=new_tickers, interval=interval, data=stocks_data, price_data=True, name='sma_30',
+                 transforms=[SMA(window=30).transform, Momentum(window=1, pct_change=True).transform])
 
 # momentum here is just taking the diff over the last X window
 price_momentum_diff = Factor(tickers=new_tickers, interval=interval, data=stocks_data,
