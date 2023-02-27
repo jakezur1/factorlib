@@ -281,8 +281,8 @@ class FactorModel:
         labels = pd.qcut(row, q=k, labels=False)
         positions = pd.Series([0.0] * len(row), index=self.tickers)
         if not long_only:
-            positions[labels == 0] = -1 / k  # bottom quintile
-        positions[labels == k - 1] = 1 / k  # top quintile
+            positions[labels == 0] = -1 / len(labels == 0)  # bottom quintile
+        positions[labels == k - 1] = 1 / len(labels == k - 1)  # top quintile
         return pd.Series(positions, index=self.tickers)
 
     def _get_model(self, model, **kwargs):
