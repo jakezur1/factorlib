@@ -10,7 +10,7 @@ from factorlib.factor_model import FactorModel
 from factorlib.factor import Factor
 from factorlib.transforms import *
 
-interval = 'D'
+interval = 'M'
 start = '2002-01-01'
 end = '2021-01-01'
 
@@ -129,7 +129,7 @@ print('Fitting Alpha Factor Model...')
 # model.fit(returns_data.loc[datetime(2002, 1, 1):datetime(2022, 11, 1)],
 #           'xgb', time='t+1', subsample=0.8, reg_lambda=1.2, reg_alpha=0.5)
 # statistics = model.backtest(datetime(2014, 1, 1), datetime(2022, 11, 1), returns=returns_data, long_pct=1)
-statistics = model.wfo(returns_data, train_date=datetime(2014, 1, 1), train_interval=timedelta(days=365),
+statistics = model.wfo(returns_data, train_date=datetime(2016, 1, 1), train_interval=timedelta(days=252 * 5),
                        long_pct=0.5, k=100)
 statistics.find_factor_significance()
 statistics.print_statistics_report()
