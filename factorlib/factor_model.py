@@ -53,7 +53,7 @@ class FactorModel:
             end_date: datetime = None,
             anchored=True,
             k=100,
-            long_pct=0.5,
+            long_only=False,
             pred_time='t+1', **kwargs):
 
         assert (self.interval == 'D' or self.interval == 'W' or self.interval == 'M' or self.interval == 'Y'), \
@@ -154,7 +154,7 @@ class FactorModel:
 
         # get positions
         positions = expected_returns.apply(self._get_positions, axis=1,
-                                           args=(k, long_pct))
+                                           args=(k, long_only))
         positions.index = positions.index.tz_localize(None)
 
         # align positions and returns
@@ -274,13 +274,14 @@ class FactorModel:
         from .statistics import Statistics
         return Statistics(portfolio_returns, self, predicted_returns=predicted_returns, stock_returns=returns)
 
-    def _get_positions(self, row, k=5):
+    def _get_positions(self, row, k=5, long_only=False):
         """Given a quintile and a row, use pandas qcut to
         create equal long short positions"""
         # qcut also handles nans so we don't have to worry about them
         labels = pd.qcut(row, q=k, labels=False)
         positions = pd.Series([0.0] * len(row), index=self.tickers)
-        positions[labels == 0] = -1 / k  # bottom quintile
+        if not long_only:
+            positions[labels == 0] = -1 / k  # bottom quintile
         positions[labels == k - 1] = 1 / k  # top quintile
         return pd.Series(positions, index=self.tickers)
 
