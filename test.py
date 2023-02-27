@@ -55,18 +55,18 @@ ranked_fundamentals = Factor(tickers=new_tickers, interval=interval, data=fundam
                              transforms=[Rank(replace_original=True).transform])
 fundamentals = Factor(tickers=new_tickers, interval=interval, data=fundamentals, name='fundamentals')
 
-
 # General Factors
 ff5 = Factor(tickers=new_tickers, interval=interval, data=ff5, general_factor=True)
 indices_factor = Factor(tickers=new_tickers, interval=interval, data=indices_returns, general_factor=True)
 
-
 # Returns / Price Factors
 log_prices = Factor(tickers=new_tickers, interval=interval, data=stocks_data, price_data=True, name='log_prices',
                     transforms=[log_diff_transform])
-ranked_returns = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True, name='ranked_returns',
+ranked_returns = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True,
+                        name='ranked_returns',
                         transforms=[Rank(replace_original=True).transform])
-ranked_volatility = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True, name='ranked_volatility',
+ranked_volatility = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True,
+                           name='ranked_volatility',
                            transforms=[Volatility(window=60).transform, Rank(replace_original=True).transform])
 stock_vol = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True, name='stock_vol')
 sma_3 = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True, name='sma_3',
@@ -77,7 +77,6 @@ sma_12 = Factor(tickers=new_tickers, interval=interval, data=returns_data, price
                 transforms=[SMA(window=12).transform])
 sma_150 = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True, name='sma_150',
                  transforms=[SMA(window=150).transform])
-
 
 # momentum here is just taking the diff over the last X window
 price_momentum_diff = Factor(tickers=new_tickers, interval=interval, data=returns_data,
@@ -130,7 +129,7 @@ print('Fitting Alpha Factor Model...')
 #           'xgb', time='t+1', subsample=0.8, reg_lambda=1.2, reg_alpha=0.5)
 # statistics = model.backtest(datetime(2014, 1, 1), datetime(2022, 11, 1), returns=returns_data, long_pct=1)
 statistics = model.wfo(returns_data, train_interval=timedelta(days=252 * 5),
-                       k=100, long_pct=0.5)
+                       k=5, subsample=0.5, max_depth=3, colsample_bytree=0.5, reg_alpha=0.2)
 statistics.find_factor_significance()
 statistics.print_statistics_report()
 statistics.get_full_qs()

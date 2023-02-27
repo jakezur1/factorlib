@@ -65,7 +65,7 @@ class FactorModel:
         else:
             start_date = self.earliest_start
         if end_date is not None:
-            assert(end_date < self.latest_end), 'end_date must be before latest end date'
+            assert (end_date < self.latest_end), 'end_date must be before latest end date'
         else:
             end_date = self.latest_end
 
@@ -275,11 +275,11 @@ class FactorModel:
     def _get_positions(self, row, k=5):
         """Given a quintile and a row, use pandas qcut to
         create equal long short positions"""
+        # qcut also handles nans so we don't have to worry about them
         labels = pd.qcut(row, q=k, labels=False)
-        print(row.index, self.tickers)
-        positions = [0.0] * len(row)
-        positions[labels == 0] = 1 / k
-        positions[labels == 1] = -1 / k
+        positions = pd.Series([0.0] * len(row), index=self.tickers)
+        positions[labels == 0] = -1 / k  # bottom quintile
+        positions[labels == k - 1] = 1 / k  # top quintile
         return pd.Series(positions, index=self.tickers)
 
     def _get_model(self, model, **kwargs):
