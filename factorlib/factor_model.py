@@ -39,6 +39,11 @@ class FactorModel:
             long_pct=0.5,
             time='t+1', **kwargs):
 
+        assert (self.interval == 'D' or self.interval == 'W' or self.interval == 'M' or self.interval == 'Y'), \
+            'Walk forward optimization currently only supports daily, weekly, monthly, or yearly intervals'
+
+        train_date = _get_end_convention(train_date, self.interval)
+
         # shift returns back by 'time' time steps
         returns = _shift_by_time_step(time, returns)
 
@@ -50,42 +55,58 @@ class FactorModel:
 
         start_date = train_date
         end_date = train_date + train_interval
+        end_date = _get_end_convention(end_date, self.interval)
         self.model = XGBRegressor(n_jobs=-1, **kwargs)
 
         # perform walk forest optimization on factors data and record expected returns
         # at each time step
         expected_returns = pd.DataFrame()
-        while end_date < self.factors.index[-1]:
+        expected_returns_index = []
+
+        # using for loop for tqdm progress bar
+        loop_start = end_date
+        loop_end = self.offset_datetime(returns.index[-1], sign=-1)
+        loop_range = pd.date_range(loop_start, loop_end,
+                                   freq=self.interval)
+        for date in tqdm(loop_range):
             X_train = pd.DataFrame()
             y_train = pd.Series(dtype=object)
             for ticker in self.tickers:
                 X_train = pd.concat([X_train, self.factors[ticker].loc[start_date:end_date]], axis=0)
                 y_train = pd.concat([y_train, returns[ticker].loc[start_date:end_date]], axis=0)
             X_train, y_train = _clean_data(X_train, y_train, drop_columns=True)
-
+            valid_columns = X_train.columns
             self.model.fit(X_train, y_train)
 
-            test_end = end_date + timedelta(minutes=(525600 / timedelta_intervals[self.interval]))
+            test_end = self.offset_datetime(end_date)
             test_end = pd.to_datetime(test_end).to_period('D').to_timestamp()
             test_end = pd.to_datetime(test_end)
+            test_end = _get_end_convention(test_end, self.interval)
 
+            curr_predictions = pd.DataFrame()
             for ticker in self.tickers:
-                expected_returns[ticker] = self.model.predict(self.factors[ticker].loc[test_end]).flatten()
-                expected_returns.index = self.factors[ticker].loc[test_end].index
-            expected_returns = pd.concat([expected_returns, returns[ticker].loc[test_end]], axis=0)
+                prediction_data = self.factors[ticker][valid_columns].loc[test_end].to_frame().T
+                curr_predictions[ticker] = self.model.predict(prediction_data).flatten()
+                expected_returns_index.append(prediction_data.index)
+            expected_returns = pd.concat([expected_returns, curr_predictions], axis=0)
 
             # calculate new intervals to train
-            if anchored:
-                end_date += timedelta(minutes=(525600 / timedelta_intervals[self.interval]))
-                end_date = pd.to_datetime(end_date).to_period('D').to_timestamp()
-                end_date = pd.to_datetime(end_date)
-            else:
-                start_date += timedelta(minutes=(525600 / timedelta_intervals[self.interval]))
+            if not anchored:
+                start_date = self.offset_datetime(start_date)
                 start_date = pd.to_datetime(start_date).to_period('D').to_timestamp()
                 start_date = pd.to_datetime(start_date)
-                end_date += timedelta(minutes=(525600 / timedelta_intervals[self.interval]))
-                end_date = pd.to_datetime(end_date).to_period('D').to_timestamp()
-                end_date = pd.to_datetime(end_date)
+                start_date = _get_end_convention(start_date, self.interval)
+
+            end_date = self.offset_datetime(end_date)
+            end_date = pd.to_datetime(end_date).to_period('D').to_timestamp()
+            end_date = pd.to_datetime(end_date)
+            end_date = _get_end_convention(end_date, self.interval)
+
+        expected_returns_index = np.array(expected_returns_index, dtype='datetime64[D]')
+        expected_returns_index = np.unique(expected_returns_index)
+        expected_returns.index = expected_returns_index
+        print('Expeted returns: ')
+        print(f'{expected_returns}\n')
 
         # get positions
         positions = expected_returns.apply(self._get_positions, axis=1,
@@ -204,7 +225,7 @@ class FactorModel:
         return Statistics(portfolio_returns, self, predicted_returns=predicted_returns, stock_returns=returns)
 
     def _get_positions(self, row, k, long_pct):
-        indices = np.argsort(row) # sorted in ascending order
+        indices = np.argsort(row)  # sorted in ascending order
         bottom_k = indices[:k]
         top_k = indices[-k:]
         positions = [0] * len(row)
@@ -230,3 +251,14 @@ class FactorModel:
         elif model == 'xgb':
             self.model = XGBRegressor(**kwargs)
         return self.model
+
+    def offset_datetime(self, date: datetime, sign=1):
+        if self.interval == 'D':
+            date += sign * pd.DateOffset(days=1)
+        elif self.interval == 'W':
+            date += sign * pd.DateOffset(days=7)
+        elif self.interval == 'M':
+            date += sign * pd.DateOffset(months=1)
+        elif self.interval == 'Y':
+            date += sign * pd.DateOffset(years=1)
+        return date
