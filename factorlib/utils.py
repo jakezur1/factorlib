@@ -1,7 +1,7 @@
 import inspect
 import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 
 __all__ = ['_delocalize_datetime',
            '_shift_by_time_step',
@@ -85,6 +85,7 @@ def _get_end_convention(date: datetime, interval: str):
     temp_df = temp_df.resample(interval, convention='end').ffill()
     end_convention = temp_df.index[0]
     return end_convention
+
 
 timedelta_intervals = {
     '1m': 525600,
