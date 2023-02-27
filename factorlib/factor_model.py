@@ -4,6 +4,7 @@ from tqdm import tqdm
 import numpy as np
 import pandas as pd
 import yfinance as yf
+import time
 from datetime import datetime, timedelta
 from sklearn.ensemble import *
 from statsmodels.regression.rolling import RollingOLS
@@ -37,7 +38,7 @@ class FactorModel:
             anchored=True,
             k=10,
             long_pct=0.5,
-            time='t+1', **kwargs):
+            pred_time='t+1', **kwargs):
 
         assert (self.interval == 'D' or self.interval == 'W' or self.interval == 'M' or self.interval == 'Y'), \
             'Walk forward optimization currently only supports daily, weekly, monthly, or yearly intervals'
@@ -45,18 +46,18 @@ class FactorModel:
         train_date = _get_end_convention(train_date, self.interval)
 
         # shift returns back by 'time' time steps
-        returns = _shift_by_time_step(time, returns)
+        shifted_returns = _shift_by_time_step(pred_time, returns)
 
         # ensure that index is datetime and delocalized
-        returns = _delocalize_datetime(returns)
+        shifted_returns = _delocalize_datetime(shifted_returns)
 
         # align factor dates to be at the latest first date and earliest last date
-        _, returns = _align_by_date_index(self.factors, returns)
+        _, shifted_returns = _align_by_date_index(self.factors, shifted_returns)
 
         start_date = train_date
         end_date = train_date + train_interval
         end_date = _get_end_convention(end_date, self.interval)
-        self.model = XGBRegressor(n_jobs=-1, **kwargs)
+        self.model = XGBRegressor(n_jobs=-1, tree_method='hist', **kwargs)
 
         # perform walk forest optimization on factors data and record expected returns
         # at each time step
@@ -65,30 +66,36 @@ class FactorModel:
 
         # using for loop for tqdm progress bar
         loop_start = end_date
-        loop_end = self.offset_datetime(returns.index[-1], sign=-1)
+        loop_end = self.offset_datetime(shifted_returns.index[-1], sign=-1)
         loop_range = pd.date_range(loop_start, loop_end,
                                    freq=self.interval)
         for date in tqdm(loop_range):
             X_train = pd.DataFrame()
             y_train = pd.Series(dtype=object)
+            start = time.time()
             for ticker in self.tickers:
                 X_train = pd.concat([X_train, self.factors[ticker].loc[start_date:end_date]], axis=0)
-                y_train = pd.concat([y_train, returns[ticker].loc[start_date:end_date]], axis=0)
+                y_train = pd.concat([y_train, shifted_returns[ticker].loc[start_date:end_date]], axis=0)
             X_train, y_train = _clean_data(X_train, y_train, drop_columns=True)
+            print('Took', time.time() - start, 'seconds to curate data')
+
+            start = time.time()
             valid_columns = X_train.columns
             self.model.fit(X_train, y_train)
 
-            test_end = self.offset_datetime(end_date)
-            test_end = pd.to_datetime(test_end).to_period('D').to_timestamp()
-            test_end = pd.to_datetime(test_end)
-            test_end = _get_end_convention(test_end, self.interval)
+            print('Took', time.time() - start, 'seconds to fit model')
+
+            # get predictions
+            start = time.time()
 
             curr_predictions = pd.DataFrame()
             for ticker in self.tickers:
-                prediction_data = self.factors[ticker][valid_columns].loc[test_end].to_frame().T
+                prediction_data = self.factors[ticker][valid_columns].loc[end_date].to_frame().T
                 curr_predictions[ticker] = self.model.predict(prediction_data).flatten()
                 expected_returns_index.append(prediction_data.index)
             expected_returns = pd.concat([expected_returns, curr_predictions], axis=0)
+
+            print('Took', time.time() - start, 'seconds to get expected returns')
 
             # calculate new intervals to train
             if not anchored:
@@ -114,6 +121,7 @@ class FactorModel:
         positions.index = positions.index.tz_localize(None)
 
         # align positions and returns
+        returns = _delocalize_datetime(returns)
         positions, returns = _align_by_date_index(positions, returns)
 
         # calculate back tested returns
