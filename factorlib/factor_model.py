@@ -72,6 +72,8 @@ class FactorModel:
         start_date = _get_end_convention(start_date, self.interval)
         end_date = _get_end_convention(end_date, self.interval)
 
+        print('Starting Walk-Forward Optimization from', start_date, 'to', end_date)
+
         # shift returns back by 'time' time steps
         shifted_returns = _shift_by_time_step(pred_time, returns)
 
