@@ -1,8 +1,5 @@
 import pandas as pd
 import numpy as np
-import yfinance as yf
-from .utils import yf_intervals
-
 
 class Factor:
     def __init__(self, tickers: list, name: str = None, data: pd.DataFrame = None,

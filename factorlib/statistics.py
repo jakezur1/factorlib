@@ -1,5 +1,3 @@
-import datetime
-
 import pandas as pd
 import numpy as np
 import quantstats as qs
@@ -15,7 +13,7 @@ class Statistics:
     def __init__(self, portfolio_returns, model: FactorModel,
                  predicted_returns: pd.DataFrame,
                  stock_returns: pd.DataFrame = None,
-                 extra_baselines: [pd.Series] = None, rebalancing_option=False):
+                 extra_baselines: [pd.Series] = None):
         qs.extend_pandas()
         self.testing_model = model
         self.predicted_returns = predicted_returns
@@ -114,7 +112,7 @@ class Statistics:
         sharpe = ['sharpe']
         sortino = ['sortino']
         cagr = ['cagr']
-        avg_rtn = ['avg rtns']
+        avg_rtn = ['avg rtrns']
         max_drawdown = ['max drawdown']
         volatility = ['volatility']
         win_rate = ['win rate']
