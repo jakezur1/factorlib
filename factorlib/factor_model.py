@@ -103,7 +103,7 @@ class FactorModel:
             for ticker in self.tickers:
                 X_train = pd.concat([X_train, self.factors[ticker].loc[training_start:training_end]], axis=0)
                 y_train = pd.concat([y_train, shifted_returns[ticker].loc[training_start:training_end]], axis=0)
-            X_train, y_train = _clean_data(X_train, y_train, drop_columns=False)
+            X_train, y_train = _clean_data(X_train, y_train, drop_columns=True)
             # print('\nTook', time.time() - start, 'seconds to curate data')
 
             start = time.time()
@@ -272,18 +272,14 @@ class FactorModel:
         from .statistics import Statistics
         return Statistics(portfolio_returns, self, predicted_returns=predicted_returns, stock_returns=returns)
 
-    def _get_positions(self, row, k, long_pct):
-        num_nans = row.isna().sum()  # remove all nans
-        indices = np.argsort(row)[:-num_nans]  # sorted in ascending order
-        k = min(k, len(indices) // 2)
-        bottom_k = indices[:k]
-        top_k = indices[-k:]
-        positions = [0] * len(row)
-
-        for i in top_k:
-            positions[i] = (1 / k) * long_pct
-        for i in bottom_k:
-            positions[i] = (-1 / k) * (1.0 - long_pct)
+    def _get_positions(self, row, k=5):
+        """Given a quintile and a row, use pandas qcut to
+        create equal long short positions"""
+        labels = pd.qcut(row, q=k, labels=False)
+        print(row.index, self.tickers)
+        positions = [0.0] * len(row)
+        positions[labels == 0] = 1 / k
+        positions[labels == 1] = -1 / k
         return pd.Series(positions, index=self.tickers)
 
     def _get_model(self, model, **kwargs):
