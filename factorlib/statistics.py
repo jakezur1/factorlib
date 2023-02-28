@@ -33,11 +33,13 @@ class Statistics:
             'buy_hold': self.buy_hold_baseline
         })
 
-        start_spy = self.testing_model.offset_datetime(self.portfolio_returns.index[0], -1)
-        spy_prices = yf.download(tickers='SPY', start=start_spy,
-                                 end=self.portfolio_returns.index[-1])['Adj Close']
+        start_spy = self.testing_model.offset_datetime(self.portfolio_returns.index[0], sign=-1)
+        end_spy = self.testing_model.offset_datetime(self.portfolio_returns.index[-1])
+        spy_prices = yf.download(tickers='SPY', start=start_spy, end=end_spy)['Adj Close']
+        # yfinance will not download the data for the start days if those days are weekends
         spy_prices = spy_prices.resample(self.testing_model.interval, convention='end').ffill()
         spy_returns = spy_prices.pct_change().dropna()
+        spy_returns = spy_returns.reindex(pd.date_range(start=start_spy, end=end_spy, freq='D'), fill_value=0.0)
         spy_returns.index = np.array(spy_returns.index, dtype='datetime64[D]')
         spy_returns.index = pd.to_datetime(spy_returns.index).tz_localize(None)
 

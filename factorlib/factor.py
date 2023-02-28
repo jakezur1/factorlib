@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 
+
 class Factor:
     def __init__(self, tickers: list, name: str = None, data: pd.DataFrame = None,
                  interval: str = 'D', general_factor: bool = False,
