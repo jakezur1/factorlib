@@ -87,7 +87,7 @@ class Statistics:
         return factor_significances
 
     def compute_spearman_rank(self):
-        spearman_ranks = self.stock_returns.corrwith(self.predicted_returns, method='spearman')
+        spearman_ranks = self.stock_returns.corrwith(self.predicted_returns, method='spearman', axis=1)
         spearman_rank = spearman_ranks.mean()
         return spearman_rank
 
