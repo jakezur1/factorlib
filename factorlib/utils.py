@@ -71,7 +71,7 @@ def _clean_data(X: pd.DataFrame, y: pd.Series, drop_columns=False, col_thresh=0.
         num_values_required = len(X) * (1 - col_thresh)
         X.dropna(axis=1, thresh=num_values_required, inplace=True)
     X['returns'] = y
-    X.dropna(subset=['returns'], inplace=True) # only look for NaNs in returns, otherwise keep NaNs
+    X.dropna(subset=['returns'], inplace=True)  # only look for NaNs in returns, otherwise keep NaNs
     y = X['returns']
     X.drop('returns', axis=1, inplace=True)
     X.replace([np.inf, -np.inf], 0, inplace=True)

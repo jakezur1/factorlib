@@ -54,7 +54,8 @@ class FactorModel:
             anchored=True,
             k=100,
             long_only=False,
-            pred_time='t+1', **kwargs):
+            pred_time='t+1',
+            train_freq=None, **kwargs):
 
         assert (self.interval == 'D' or self.interval == 'W' or self.interval == 'M' or self.interval == 'Y'), \
             'Walk forward optimization currently only supports daily, weekly, monthly, or yearly intervals'
@@ -72,7 +73,8 @@ class FactorModel:
         start_date = _get_end_convention(start_date, self.interval)
         end_date = _get_end_convention(end_date, self.interval)
 
-        print('Starting Walk-Forward Optimization from', start_date, 'to', end_date)
+        print('Starting Walk-Forward Optimization from', start_date, 'to', end_date, 'with a',
+              train_interval.days / 365, 'year training interval')
 
         # shift returns back by 'time' time steps
         shifted_returns = _shift_by_time_step(pred_time, returns)
@@ -85,8 +87,9 @@ class FactorModel:
 
         training_start = start_date
         training_end = start_date + train_interval
+        assert training_end < end_date, 'Training interval exceeds the total amount of data provided.'
         training_end = _get_end_convention(training_end, self.interval)
-        self.model = XGBRegressor(n_jobs=-1, tree_method='hist', **kwargs)
+        self.model = XGBRegressor(n_jobs=-1, tree_method='hist', random_state=42, **kwargs)
 
         # perform walk forest optimization on factors data and record expected returns
         # at each time step
@@ -98,24 +101,42 @@ class FactorModel:
         loop_end = self.offset_datetime(end_date, sign=-1)
         loop_range = pd.date_range(loop_start, loop_end,
                                    freq=self.interval)
-        for date in tqdm(loop_range):
+        for index, date in enumerate(tqdm(loop_range)):
             X_train = pd.DataFrame()
             y_train = pd.Series(dtype=object)
             start = time.time()
-            for ticker in self.tickers:
-                X_train = pd.concat([X_train, self.factors[ticker].loc[training_start:training_end]], axis=0)
-                y_train = pd.concat([y_train, shifted_returns[ticker].loc[training_start:training_end]], axis=0)
-            X_train, y_train = _clean_data(X_train, y_train, drop_columns=True)
-            # print('\nTook', time.time() - start, 'seconds to curate data')
+            # check if we should train the model on this iteration
 
-            start = time.time()
-            valid_columns = X_train.columns
-            self.model.fit(X_train, y_train)
+            train_this_iteration = False
+            if timedelta_intervals[self.interval] <= timedelta_intervals['M']:
+                train_this_iteration = True
+            else:
+                last_day_of_month = _get_end_convention(datetime(training_end.year, training_end.month, 20),
+                                                        self.interval)
+                if self.interval == 'D':
+                    if pd.Timestamp(training_end).is_month_end:
+                        train_this_iteration = True
+                elif self.interval == 'W':
+                    # check if date is in the last week of the month
+                    if (last_day_of_month - training_end).days < 7:
+                        train_this_iteration = True
+            if index == 0:
+                train_this_iteration = True
 
-            # print('Took', time.time() - start, 'seconds to fit model')
+            if train_this_iteration:
+                for ticker in self.tickers:
+                    X_train = pd.concat([X_train, self.factors[ticker].loc[training_start:training_end]], axis=0)
+                    y_train = pd.concat([y_train, shifted_returns[ticker].loc[training_start:training_end]], axis=0)
+                X_train, y_train = _clean_data(X_train, y_train, drop_columns=True)
+                # print('\nTook', time.time() - start, 'seconds to curate data')
+
+                start = time.time()
+                valid_columns = X_train.columns
+                self.model.fit(X_train, y_train)
+                # print('Took', time.time() - start, 'seconds to fit model')
 
             # get predictions
-            # this is our OOS sample test (that's one month ahead)
+            # this is our OOS sample test (that's one timestep ahead)
             start = time.time()
             test_end = self.offset_datetime(training_end)
             test_end = pd.to_datetime(test_end).to_period('D').to_timestamp()
@@ -132,17 +153,17 @@ class FactorModel:
                 expected_returns_index.append(prediction_data.index)
             expected_returns = pd.concat([expected_returns, curr_predictions], axis=0)
 
-            # print('Took', time.time() - start, 'seconds to get expected returns')
+            # print('\nTook', time.time() - start, 'seconds to get expected returns')
 
             # calculate new intervals to train
             if not anchored:
                 training_start = self.offset_datetime(training_start)
-                training_start = pd.to_datetime(training_start).to_period('D').to_timestamp()
+                training_start = np.array([training_start], dtype='datetime64[D]')[0]
                 training_start = pd.to_datetime(training_start)
                 training_start = _get_end_convention(training_start, self.interval)
 
             training_end = self.offset_datetime(training_end)
-            training_end = pd.to_datetime(training_end).to_period('D').to_timestamp()
+            training_end = np.array([training_end], dtype='datetime64[D]')[0]
             training_end = pd.to_datetime(training_end)
             training_end = _get_end_convention(training_end, self.interval)
 
@@ -277,12 +298,12 @@ class FactorModel:
     def _get_positions(self, row, k=5, long_only=False):
         """Given a quintile and a row, use pandas qcut to
         create equal long short positions"""
-        # qcut also handles nans so we don't have to worry about them
-        labels = pd.qcut(row, q=k, labels=False)
+        # qcut also handles nans, so we don't have to worry about them
+        labels = pd.qcut(row, q=k, labels=False, duplicates='drop')
         positions = pd.Series([0.0] * len(row), index=self.tickers)
         if not long_only:
-            positions[labels == 0] = -1 / len(labels == 0)  # bottom quintile
-        positions[labels == k - 1] = 1 / len(labels == k - 1)  # top quintile
+            positions[labels == 0] = -1 / len(labels == 0)  # bottom quantile
+        positions[labels == k - 1] = 1 / len(labels == k - 1)  # top quantile
         return pd.Series(positions, index=self.tickers)
 
     def _get_model(self, model, **kwargs):
