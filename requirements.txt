@@ -19,3 +19,5 @@ cloudpickle
 prettytable
 ipython
 Jupyter
+fastai
+pandas_ta
