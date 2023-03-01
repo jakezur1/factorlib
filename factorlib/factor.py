@@ -29,6 +29,7 @@ class Factor:
             "general_factor and price_data cannot both be True"
         if general_factor:
             index = data.index
+            data = data.add_suffix(f'_{self.name}')
             multi_index = pd.MultiIndex.from_product([self.tickers, data.columns])
             factor_values = np.tile(data.values, (1, len(self.tickers)))
             multi_index_factors = pd.DataFrame(factor_values, columns=multi_index, index=index)
@@ -36,7 +37,7 @@ class Factor:
         elif price_data:
             index = data.index
             data = data[self.tickers]
-            multi_index = pd.MultiIndex.from_product([self.tickers, ['close']])
+            multi_index = pd.MultiIndex.from_product([self.tickers, [self.name]])
             multi_index_prices = pd.DataFrame(data.values, columns=multi_index, index=index)
             multi_index_prices.columns = multi_index_prices.columns.set_levels(data.columns, level=0)
             self.data = multi_index_prices

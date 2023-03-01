@@ -89,7 +89,14 @@ class FactorModel:
         training_data = self.factors.stack(level=0)
         stacked_returns = shifted_returns.stack(level=0)
 
+        # set the frequency of training
+        frequency = None
+        if timedelta_intervals[self.interval] >= timedelta_intervals['M']:
+            frequency = 'M'
+        else:
+            frequency = self.interval
         training_start = start_date
+        training_start = _get_end_convention(training_start, frequency)
         training_end = start_date + train_interval
         assert training_end < end_date, 'Training interval exceeds the total amount of data provided.'
         training_end = _get_end_convention(training_end, self.interval)
@@ -101,11 +108,6 @@ class FactorModel:
         expected_returns_index = []
 
         # using for loop for tqdm progress bar
-        frequency = None
-        if timedelta_intervals[self.interval] >= timedelta_intervals['M']:
-            frequency = 'M'
-        else:
-            frequency = self.interval
         loop_start = training_end
         loop_end = self.offset_datetime(end_date, sign=-1, override_interval=frequency)
         loop_range = pd.date_range(loop_start, loop_end, freq=frequency)
@@ -164,7 +166,7 @@ class FactorModel:
                     curr_predictions[ticker] = self.model.predict(prediction_data).flatten()
                     expected_returns_index.extend(prediction_data.index.values)
                 expected_returns = pd.concat([expected_returns, curr_predictions], axis=0)
-                # print('\nTook', time.time() - start, 'seconds to get expected returns')
+                # print('Took', time.time() - start, 'seconds to get expected returns\n')
 
             # calculate new intervals to train
             if not anchored:
@@ -185,7 +187,7 @@ class FactorModel:
         print(f'{expected_returns}\n')
 
         # get positions
-        positions = expected_returns.apply(self._get_positions, axis=1,
+        positions = expected_returns.apply(self._get_positions, axis=0,
                                            args=(k, long_only))
         positions.index = positions.index.tz_localize(None)
 
@@ -199,7 +201,8 @@ class FactorModel:
 
         # importing here to avoid circular import
         from .statistics import Statistics
-        return Statistics(portfolio_returns, self, predicted_returns=expected_returns, stock_returns=returns)
+        return Statistics(portfolio_returns, self, predicted_returns=expected_returns, stock_returns=returns,
+                          position_weights=positions)
 
     def fit(self, returns: pd.DataFrame, model: ModelType, voting_models=None,
             pred_time='t+1',
@@ -315,7 +318,7 @@ class FactorModel:
         if not long_only:
             positions[labels == 0] = -1 / len(labels == 0)  # bottom quantile
         positions[labels == k - 1] = 1 / len(labels == k - 1)  # top quantile
-        return pd.Series(positions, index=self.tickers)
+        return pd.Series(pgit ositions, index=self.tickers)
 
     def _get_model(self, model, **kwargs):
         if model == 'hgbm':
