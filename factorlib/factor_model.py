@@ -85,6 +85,10 @@ class FactorModel:
         # align factor dates to be at the latest first date and earliest last date
         _, shifted_returns = _align_by_date_index(self.factors, shifted_returns)
 
+        # stack the factors and returns of each ticker for easier training
+        training_data = self.factors.stack(level=0)
+        stacked_returns = shifted_returns.stack(level=0)
+
         training_start = start_date
         training_end = start_date + train_interval
         assert training_end < end_date, 'Training interval exceeds the total amount of data provided.'
@@ -97,16 +101,20 @@ class FactorModel:
         expected_returns_index = []
 
         # using for loop for tqdm progress bar
+        frequency = None
+        if timedelta_intervals[self.interval] >= timedelta_intervals['M']:
+            frequency = 'M'
+        else:
+            frequency = self.interval
         loop_start = training_end
-        loop_end = self.offset_datetime(end_date, sign=-1)
-        loop_range = pd.date_range(loop_start, loop_end,
-                                   freq=self.interval)
+        loop_end = self.offset_datetime(end_date, sign=-1, override_interval=frequency)
+        loop_range = pd.date_range(loop_start, loop_end, freq=frequency)
         for index, date in enumerate(tqdm(loop_range)):
             X_train = pd.DataFrame()
             y_train = pd.Series(dtype=object)
             start = time.time()
-            # check if we should train the model on this iteration
 
+            # check if we should train the model on this iteration
             train_this_iteration = False
             if timedelta_intervals[self.interval] <= timedelta_intervals['M']:
                 train_this_iteration = True
@@ -124,9 +132,11 @@ class FactorModel:
                 train_this_iteration = True
 
             if train_this_iteration:
-                for ticker in self.tickers:
-                    X_train = pd.concat([X_train, self.factors[ticker].loc[training_start:training_end]], axis=0)
-                    y_train = pd.concat([y_train, shifted_returns[ticker].loc[training_start:training_end]], axis=0)
+                X_train = training_data.loc[training_start:training_end]
+                y_train = stacked_returns.loc[training_start:training_end]
+                X_train, y_train = X_train.align(y_train, axis=0)
+                X_train = X_train.reset_index(level=0, drop=True)
+                y_train = y_train.reset_index(level=0, drop=True)
                 X_train, y_train = _clean_data(X_train, y_train, drop_columns=True)
                 # print('\nTook', time.time() - start, 'seconds to curate data')
 
@@ -135,34 +145,35 @@ class FactorModel:
                 self.model.fit(X_train, y_train)
                 # print('Took', time.time() - start, 'seconds to fit model')
 
-            # get predictions
-            # this is our OOS sample test (that's one timestep ahead)
-            start = time.time()
-            test_end = self.offset_datetime(training_end)
-            test_end = pd.to_datetime(test_end).to_period('D').to_timestamp()
-            test_end = pd.to_datetime(test_end)
-            test_end = _get_end_convention(test_end, self.interval)
+                # get predictions
+                # this is our OOS sample test (that's one timestep ahead)
+                start = time.time()
+                pred_start = self.offset_datetime(training_end)
+                pred_start = pd.to_datetime(pred_start).to_period('D').to_timestamp()
+                pred_start = pd.to_datetime(pred_start)
+                pred_start = _get_end_convention(pred_start, self.interval)
+                pred_end = _get_end_convention(pred_start, frequency)
+                curr_predictions = pd.DataFrame()
 
-            curr_predictions = pd.DataFrame()
-            for ticker in self.tickers:
-                prediction_data = self.factors[ticker][valid_columns].loc[test_end].to_frame().T
-                # if prediction_data.isna().sum().sum() >= 1:
-                #     curr_predictions[ticker] = np.nan
-                #     continue
-                curr_predictions[ticker] = self.model.predict(prediction_data).flatten()
-                expected_returns_index.append(prediction_data.index)
-            expected_returns = pd.concat([expected_returns, curr_predictions], axis=0)
+                for ticker in self.tickers:
+                    prediction_data = self.factors[ticker][valid_columns].loc[pred_start:pred_end]
 
-            # print('\nTook', time.time() - start, 'seconds to get expected returns')
+                    # if prediction_data.isna().sum().sum() >= 1:
+                    #     curr_predictions[ticker] = np.nan
+                    #     continue
+                    curr_predictions[ticker] = self.model.predict(prediction_data).flatten()
+                    expected_returns_index.extend(prediction_data.index.values)
+                expected_returns = pd.concat([expected_returns, curr_predictions], axis=0)
+                # print('\nTook', time.time() - start, 'seconds to get expected returns')
 
             # calculate new intervals to train
             if not anchored:
-                training_start = self.offset_datetime(training_start)
+                training_start = self.offset_datetime(training_start, override_interval=frequency)
                 training_start = np.array([training_start], dtype='datetime64[D]')[0]
                 training_start = pd.to_datetime(training_start)
                 training_start = _get_end_convention(training_start, self.interval)
 
-            training_end = self.offset_datetime(training_end)
+            training_end = self.offset_datetime(training_end, override_interval=frequency)
             training_end = np.array([training_end], dtype='datetime64[D]')[0]
             training_end = pd.to_datetime(training_end)
             training_end = _get_end_convention(training_end, self.interval)
@@ -321,8 +332,12 @@ class FactorModel:
             self.model = XGBRegressor(**kwargs)
         return self.model
 
-    def offset_datetime(self, date: datetime, sign=1):
-        if self.interval == 'D':
+    def offset_datetime(self, date: datetime, sign=1, override_interval=None):
+        if override_interval is not None:
+            model = FactorModel(self.tickers, override_interval)
+            date = model.offset_datetime(date, sign=sign)
+            date = _get_end_convention(date, override_interval)
+        elif self.interval == 'D':
             date += sign * pd.DateOffset(days=1)
         elif self.interval == 'W':
             date += sign * pd.DateOffset(days=7)
