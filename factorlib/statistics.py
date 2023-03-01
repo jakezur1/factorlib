@@ -121,6 +121,8 @@ class Statistics:
         volatility = ['volatility']
         win_rate = ['win rate']
         print('Spearman correlation: ' + str(self.compute_spearman_rank()))
+        self.compute_correlations()
+        qs.plots.snapshot(self.portfolio_returns)
         for returns in self.all_returns:
             cum_returns.append(round(returns.sum().values[0] * 100, 2))
             sharpe.append(round(returns.sharpe(periods=timedelta_intervals[self.testing_model.interval]).values[0], 3))
