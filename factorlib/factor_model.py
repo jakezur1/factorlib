@@ -318,7 +318,7 @@ class FactorModel:
         if not long_only:
             positions[labels == 0] = -1 / len(labels == 0)  # bottom quantile
         positions[labels == k - 1] = 1 / len(labels == k - 1)  # top quantile
-        return pd.Series(pgit ositions, index=self.tickers)
+        return pd.Series(positions, index=self.tickers)
 
     def _get_model(self, model, **kwargs):
         if model == 'hgbm':
