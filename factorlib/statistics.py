@@ -7,11 +7,12 @@ from scipy import stats
 import random
 from prettytable import PrettyTable
 from .utils import timedelta_intervals
+import matplotlib.pyplot as plt
 
 
 class Statistics:
     def __init__(self, portfolio_returns, model: FactorModel,
-                 predicted_returns: pd.DataFrame,
+                 predicted_returns: pd.DataFrame, position_weights: pd.DataFrame,
                  stock_returns: pd.DataFrame = None,
                  extra_baselines: [pd.Series] = None):
         qs.extend_pandas()
@@ -19,13 +20,14 @@ class Statistics:
         self.predicted_returns = predicted_returns
         self.stock_returns = stock_returns
         self.portfolio_returns = portfolio_returns
+        self.position_weights = position_weights
+
         self.portfolio_returns.index = pd.to_datetime(self.portfolio_returns.index).tz_localize(None) \
             .floor('D')
         self.portfolio_returns = portfolio_returns.resample(self.testing_model.interval, convention='end').ffill()
-
         correct_index = self.portfolio_returns[1:].index
-        bh_returns = stock_returns.loc[correct_index]
 
+        bh_returns = stock_returns.loc[correct_index]
         self.buy_hold_baseline = bh_returns / len(self.testing_model.tickers)
         self.buy_hold_baseline = self.buy_hold_baseline.sum(axis=1)
         self.buy_hold_baseline = self.buy_hold_baseline.loc[correct_index]
@@ -139,6 +141,14 @@ class Statistics:
         statsTable.add_row(volatility)
         statsTable.add_row(win_rate)
         print(statsTable)
+
+        x = self.position_weights.index
+        y = self.position_weights.sum(axis=1)
+        plt.plot(x, y)
+        plt.title('Position Weights')
+        plt.xlabel('Date')
+        plt.ylabel('Summed weights')
+        plt.show()
 
     def _get_random_positions(self, row, k):
         indices = np.argsort(row)  # ascending order

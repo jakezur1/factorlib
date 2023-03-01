@@ -54,11 +54,12 @@ ranked_fundamentals = Factor(tickers=new_tickers, interval=interval, data=fundam
 fundamentals = Factor(tickers=new_tickers, interval=interval, data=fundamentals, name='fundamentals')
 
 # Date Factors
-date = Factor(tickers=new_tickers, interval=interval, data=date_df, general_factor=True)
+date = Factor(tickers=new_tickers, interval=interval, data=date_df, general_factor=True, name='date_factor')
 
 # General Factors
 ff5 = Factor(tickers=new_tickers, interval=interval, data=ff5, general_factor=True)
-indices_factor = Factor(tickers=new_tickers, interval=interval, data=indices_returns, general_factor=True)
+indices_factor = Factor(tickers=new_tickers, interval=interval, data=indices_returns, general_factor=True,
+                        name='index')
 
 # Technical Indicator Factors
 # need to run by series instead of .apply
@@ -75,14 +76,11 @@ ranked_volatility = Factor(tickers=new_tickers, interval=interval, data=returns_
                            name='ranked_volatility',
                            transforms=[Volatility(window=60).transform, Rank(replace_original=True).transform])
 volatility = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True,
-                    name='vols',
-                    transforms=[Volatility(window=60).transform])
-stock_vol = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True, name='stock_vol')
+                    name='vols', transforms=[Volatility(window=60).transform])
 returns_shifted_one = Factor(tickers=new_tickers, interval=interval, data=returns_data.shift(1), price_data=True,
-                            name='returns_shifted_1')
+                             name='returns_shifted_1')
 returns_shifted_seven = Factor(tickers=new_tickers, interval=interval, data=returns_data.shift(7), price_data=True,
-                            name='returns_shifted_7')
-
+                             name='returns_shifted_7')
 returns_shifted_20 = Factor(tickers=new_tickers, interval=interval, data=returns_data.shift(20), price_data=True,
                             name='returns_shifted_20')
 sma_3 = Factor(tickers=new_tickers, interval=interval, data=stocks_data, price_data=True, name='sma_3',
@@ -138,8 +136,9 @@ print('Fitting Alpha Factor Model...')
 #           'xgb', time='t+1', subsample=0.8, reg_lambda=1.2, reg_alpha=0.5)
 # statistics = model.backtest(datetime(2014, 1, 1), datetime(2022, 11, 1), returns=returns_data, long_pct=1)
 
-statistics = model.wfo(returns_data, train_interval=timedelta(days=252 * 5),
-                       anchored=False, k=5, long_only=True, subsample=0.5, max_depth=3, colsample_bytree=0.5, reg_alpha=0.2)
+statistics = model.wfo(returns_data, start_date=datetime(2014, 1, 1), train_interval=timedelta(days=365 * 5),
+                       anchored=False, k=5, long_only=True, subsample=0.5, max_depth=3, colsample_bytree=0.5,
+                       reg_alpha=0.2)
 statistics.find_factor_significance()
 statistics.print_statistics_report()
 statistics.get_full_qs()
