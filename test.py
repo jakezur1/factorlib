@@ -1,4 +1,5 @@
 import yfinance as yf
+import pandas_ta as ta
 from datetime import datetime, timedelta
 import getFamaFrenchFactors as gff
 from factorlib.factor_model import FactorModel
@@ -29,10 +30,7 @@ print("Universe of Tickers: ", len(new_tickers), " Total")
 returns_data = stocks_data.pct_change(1)
 
 print('Grabbing FF5...')
-ff5 = gff.famaFrench5Factor(frequency='m')
-ff5.drop('RF', axis=1, inplace=True)
-ff5.rename(columns={"date_ff_factors": 'Date'}, inplace=True)
-ff5.set_index('Date', inplace=True)
+ff5 = pd.read_csv('../data/fff-daily.csv', index_col='Date', parse_dates=['Date'])
 ff5.resample(interval).ffill()
 
 print('Grabbing Indices...')
@@ -53,6 +51,12 @@ fundamentals = Factor(tickers=new_tickers, interval=interval, data=fundamentals,
 # General Factors
 ff5 = Factor(tickers=new_tickers, interval=interval, data=ff5, general_factor=True)
 indices_factor = Factor(tickers=new_tickers, interval=interval, data=indices_returns, general_factor=True)
+
+# Technical Indicator Factors
+rsi_data = stocks_data.apply(ta.momentum.rsi, length=14)
+rsi = Factor(tickers=new_tickers, interval=interval, data=rsi_data, name='rsi')
+
+
 
 # Returns / Price Factors
 log_prices = Factor(tickers=new_tickers, interval=interval, data=stocks_data, price_data=True, name='log_prices',
@@ -128,8 +132,8 @@ print('Fitting Alpha Factor Model...')
 #           'xgb', time='t+1', subsample=0.8, reg_lambda=1.2, reg_alpha=0.5)
 # statistics = model.backtest(datetime(2014, 1, 1), datetime(2022, 11, 1), returns=returns_data, long_pct=1)
 
-statistics = model.wfo(returns_data, start_date=datetime(2014, 1, 1), train_interval=timedelta(days=365 * 5),
-                       anchored=False, k=5, subsample=0.5, max_depth=3, colsample_bytree=0.5, reg_alpha=0.2)
+statistics = model.wfo(returns_data, train_interval=timedelta(days=252 * 5),
+                       anchored=False, k=5, long_only=True, subsample=0.5, max_depth=3, colsample_bytree=0.5, reg_alpha=0.2)
 statistics.find_factor_significance()
 statistics.print_statistics_report()
 statistics.get_full_qs()
