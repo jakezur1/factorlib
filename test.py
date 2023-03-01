@@ -1,7 +1,7 @@
 import yfinance as yf
 import pandas_ta as ta
 from datetime import datetime, timedelta
-import fastai
+from fastai.tabular.all import add_datepart
 from factorlib.factor_model import FactorModel
 from factorlib.factor import Factor
 from factorlib.transforms import *
@@ -17,12 +17,9 @@ stocks_data.index = pd.to_datetime(stocks_data.index).tz_localize(None).floor('D
 stocks_data = stocks_data.resample(interval, convention='end').ffill()
 
 print('Adding in Date Features...')
-
 date_df = pd.DataFrame({'date': stocks_data.index})
-date_df = add_date_part(date_df, 'date', drop=False, time=False)
+date_df = add_datepart(date_df, 'date', drop=False, time=False)
 date_df.index = stocks_data.index
-
-
 
 print('Reading in Fundamentals Data...')
 
@@ -38,7 +35,7 @@ print("Universe of Tickers: ", len(new_tickers), " Total")
 returns_data = stocks_data.pct_change(1)
 
 print('Grabbing FF5...')
-ff5 = pd.read_csv('../data/fff-daily.csv', index_col='Date', parse_dates=['Date'])
+ff5 = pd.read_csv('./data/fff-daily.csv', index_col='Date', parse_dates=['Date'])
 ff5.resample(interval).ffill()
 
 print('Grabbing Indices...')
@@ -64,10 +61,9 @@ ff5 = Factor(tickers=new_tickers, interval=interval, data=ff5, general_factor=Tr
 indices_factor = Factor(tickers=new_tickers, interval=interval, data=indices_returns, general_factor=True)
 
 # Technical Indicator Factors
-rsi_data = stocks_data.apply(ta.momentum.rsi, length=14)
-rsi = Factor(tickers=new_tickers, interval=interval, data=rsi_data, name='rsi')
-
-
+# need to run by series instead of .apply
+# rsi_data = stocks_data.apply(ta.momentum.rsi, length=14)
+# rsi = Factor(tickers=new_tickers, interval=interval, data=rsi_data, name='rsi')
 
 # Returns / Price Factors
 log_prices = Factor(tickers=new_tickers, interval=interval, data=stocks_data, price_data=True, name='log_prices',
