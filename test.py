@@ -1,7 +1,7 @@
 import yfinance as yf
 import pandas_ta as ta
 from datetime import datetime, timedelta
-import getFamaFrenchFactors as gff
+import fastai
 from factorlib.factor_model import FactorModel
 from factorlib.factor import Factor
 from factorlib.transforms import *
@@ -15,6 +15,14 @@ print('Reading in Stock Data...')
 stocks_data = pd.read_csv('./data/spy_data_daily.csv', index_col=0)
 stocks_data.index = pd.to_datetime(stocks_data.index).tz_localize(None).floor('D')
 stocks_data = stocks_data.resample(interval, convention='end').ffill()
+
+print('Adding in Date Features...')
+
+date_df = pd.DataFrame({'date': stocks_data.index})
+date_df = add_date_part(date_df, 'date', drop=False, time=False)
+date_df.index = stocks_data.index
+
+
 
 print('Reading in Fundamentals Data...')
 
@@ -42,11 +50,14 @@ indices_returns = indices_df.pct_change(1)
 print('Adding Factors...')
 
 # Fundamentals
-# delta_fundamentals = Factor(tickers=new_tickers, interval=interval, data=fundamentals.pct_change(1),
-#                             name='delta_fundamentals')
+delta_fundamentals = Factor(tickers=new_tickers, interval=interval, data=fundamentals,
+                            name='delta_fundamentals', transforms=[Momentum(window=1, pct_change=True).transform])
 ranked_fundamentals = Factor(tickers=new_tickers, interval=interval, data=fundamentals, name='ranked_fundamentals',
                              transforms=[Rank(replace_original=True).transform])
 fundamentals = Factor(tickers=new_tickers, interval=interval, data=fundamentals, name='fundamentals')
+
+# Date Factors
+date = Factor(tickers=new_tickers, interval=interval, data=date_df, general_factor=True)
 
 # General Factors
 ff5 = Factor(tickers=new_tickers, interval=interval, data=ff5, general_factor=True)
@@ -71,6 +82,13 @@ volatility = Factor(tickers=new_tickers, interval=interval, data=returns_data, p
                     name='vols',
                     transforms=[Volatility(window=60).transform])
 stock_vol = Factor(tickers=new_tickers, interval=interval, data=returns_data, price_data=True, name='stock_vol')
+returns_shifted_one = Factor(tickers=new_tickers, interval=interval, data=returns_data.shift(1), price_data=True,
+                            name='returns_shifted_1')
+returns_shifted_seven = Factor(tickers=new_tickers, interval=interval, data=returns_data.shift(7), price_data=True,
+                            name='returns_shifted_7')
+
+returns_shifted_20 = Factor(tickers=new_tickers, interval=interval, data=returns_data.shift(20), price_data=True,
+                            name='returns_shifted_20')
 sma_3 = Factor(tickers=new_tickers, interval=interval, data=stocks_data, price_data=True, name='sma_3',
                transforms=[SMA(window=3).transform])
 sma_6 = Factor(tickers=new_tickers, interval=interval, data=stocks_data, price_data=True, name='sma_6',
@@ -106,26 +124,18 @@ model = FactorModel(tickers=new_tickers, interval=interval)
 model.add_factor(ff5)
 model.add_factor(log_prices)
 model.add_factor(indices_factor)
-# model.add_factor(ranked_returns)
+model.add_factor(returns_shifted_20)
+model.add_factor(returns_shifted_one)
+model.add_factor(returns_shifted_seven)
+model.add_factor(volatility)
 model.add_factor(sma_3)
 model.add_factor(sma_6)
-model.add_factor(volatility)
-# model.add_factor(ranked_volatility)
-# model.add_factor(stock_vol)
 model.add_factor(sma_12)
 model.add_factor(sma_30)
 model.add_factor(fundamentals)
 model.add_factor(price_momentum_diff)
 model.add_factor(short_momentum_diff)
 model.add_factor(medium_momentum_diff)
-# model.add_factor(delta_fundamentals)
-# model.add_factor(ranked_fundamentals)
-# model.add_factor(kalman_filter)
-# model.add_factor(butters)
-# model.add_factor(gaussian)
-# model.add_factor(median)
-# model.add_factor(wavelet)
-# model.add_factor(time_decomposition)
 
 print('Fitting Alpha Factor Model...')
 # model.fit(returns_data.loc[datetime(2002, 1, 1):datetime(2022, 11, 1)],
