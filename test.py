@@ -63,7 +63,7 @@ indices_factor = Factor(tickers=new_tickers, interval=interval, data=indices_ret
 
 # Technical Indicator Factors
 # need to run by series instead of .apply
-# rsi_data = stocks_data.apply(ta.momentum.rsi, length=14)
+# rsi_data = stocks_data.apply(ta.momentum.rsi, length=14, axis=0)
 # rsi = Factor(tickers=new_tickers, interval=interval, data=rsi_data, name='rsi')
 
 # Returns / Price Factors
@@ -136,9 +136,10 @@ print('Fitting Alpha Factor Model...')
 #           'xgb', time='t+1', subsample=0.8, reg_lambda=1.2, reg_alpha=0.5)
 # statistics = model.backtest(datetime(2014, 1, 1), datetime(2022, 11, 1), returns=returns_data, long_pct=1)
 
-statistics = model.wfo(returns_data, start_date=datetime(2014, 1, 1), train_interval=timedelta(days=365 * 5),
-                       anchored=False, k=5, long_only=True, subsample=0.5, max_depth=3, colsample_bytree=0.5,
-                       reg_alpha=0.2)
+statistics = model.wfo(returns_data,
+                       train_interval=timedelta(days=365 * 5), anchored=False,  # interval parameters
+                       k_pct=0.2, short_only=True,  # weight parameters
+                       subsample=0.5, max_depth=3, colsample_bytree=0.5, reg_alpha=0.2)  # regularization parameters
 statistics.find_factor_significance()
 statistics.print_statistics_report()
 statistics.get_full_qs()

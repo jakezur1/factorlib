@@ -122,7 +122,6 @@ class Statistics:
         win_rate = ['win rate']
         print('Spearman correlation: ' + str(self.compute_spearman_rank()))
         self.compute_correlations()
-        qs.plots.snapshot(self.portfolio_returns)
         for returns in self.all_returns:
             cum_returns.append(round(returns.sum().values[0] * 100, 2))
             sharpe.append(round(returns.sharpe(periods=timedelta_intervals[self.testing_model.interval]).values[0], 3))
@@ -144,6 +143,10 @@ class Statistics:
         statsTable.add_row(win_rate)
         print(statsTable)
 
+        print('Factor correlations:')
+        corr_matrix = self.compute_correlations()
+        print(corr_matrix)
+
         x = self.position_weights.index
         y = self.position_weights.sum(axis=1)
         plt.plot(x, y)
@@ -151,6 +154,9 @@ class Statistics:
         plt.xlabel('Date')
         plt.ylabel('Summed weights')
         plt.show()
+
+        qs.plots.returns(self.portfolio_returns, benchmark=self.spy_baseline)
+        qs.plots.log_returns(self.portfolio_returns, benchmark=self.spy_baseline)
 
     def _get_random_positions(self, row, k):
         indices = np.argsort(row)  # ascending order
