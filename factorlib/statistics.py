@@ -73,17 +73,17 @@ class Statistics:
             self.all_returns.extend(extra_baselines)
 
     def to_csv(self, name: str, save_weights: bool = True, save_predictions: bool = True):
-        self.portfolio_returns.to_csv(name + '_factors.csv')
+        self.portfolio_returns['factors'].to_csv(name + '_factors.csv')
         if save_weights:
             self.position_weights.to_csv(name + '_weights.csv')
         if save_predictions:
             pd.join(self.predicted_returns, self.stock_returns, lsuffix='predicted_', rsuffix='actual_')\
                 .to_csv(name + '_predictions.csv')
     def get_full_qs(self):
-        qs.reports.full(self.portfolio_returns, periods_per_year=timedelta_intervals[self.testing_model.interval])
+        qs.reports.full(self.portfolio_returns['factors'], periods_per_year=timedelta_intervals[self.testing_model.interval])
 
     def get_html(self):
-        qs.reports.html(self.portfolio_returns, output='factor_model.html',
+        qs.reports.html(self.portfolio_returns['factors'], output='factor_model.html',
                         periods_per_year=timedelta_intervals[self.testing_model.interval])
 
     def find_factor_significance(self):
@@ -130,7 +130,7 @@ class Statistics:
         print('Spearman correlation: ' + str(self.compute_spearman_rank()))
         self.compute_correlations()
         for returns in self.all_returns:
-            cum_returns.append(_compsum(returns) * 100)
+            cum_returns.append((_compsum(returns) * 100).iloc[-1])
             sharpe.append(round(returns.sharpe(periods=timedelta_intervals[self.testing_model.interval]).values[0], 3))
             sortino.append(round(returns.sortino(periods=timedelta_intervals[self.testing_model.interval]).values[0], 3))
             cagr.append(str(round(returns.cagr().values[0] * 100, 2)) + '%')
@@ -162,8 +162,8 @@ class Statistics:
         plt.ylabel('Summed weights')
         plt.show()
 
-        qs.plots.returns(self.portfolio_returns, benchmark=self.spy_baseline)
-        qs.plots.snapshot(self.portfolio_returns)
+        qs.plots.returns(self.portfolio_returns['factors'], benchmark=self.spy_baseline)
+        qs.plots.snapshot(self.portfolio_returns['factors'])
 
     def _get_random_positions(self, row, k):
         indices = np.argsort(row)  # ascending order
