@@ -87,6 +87,11 @@ def _get_end_convention(date: datetime, interval: str):
     return end_convention
 
 
+def _compsum(returns):
+    """Calculates rolling compounded returns"""
+    return returns.add(1).cumprod() - 1
+
+
 timedelta_intervals = {
     '1m': 525600,
     '5m': 105120,
