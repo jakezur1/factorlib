@@ -72,6 +72,13 @@ class Statistics:
         if extra_baselines is not None:
             self.all_returns.extend(extra_baselines)
 
+    def to_csv(self, name: str, save_weights: bool = False, save_predictions: bool = False):
+        self.portfolio_returns.to_csv(name + '_factors.csv')
+        if save_weights:
+            self.position_weights.to_csv(name + '_weights.csv')
+        if save_predictions:
+            pd.join(self.predicted_returns, self.stock_returns, lsuffix='predicted_', rsuffix='actual_')\
+                .to_csv(name + '_predictions.csv')
     def get_full_qs(self):
         qs.reports.full(self.portfolio_returns, periods_per_year=timedelta_intervals[self.testing_model.interval])
 
