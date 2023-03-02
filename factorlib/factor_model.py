@@ -334,9 +334,9 @@ class FactorModel:
             long_pct = 0.0
 
         for i in topk:
-            positions[i] = (1 / k) * long_pct
+            positions[i] = round((1 / k) * long_pct, 3)
         for i in bottomk:
-            positions[i] = round((-1 / k) * (1 - long_pct), 2)
+            positions[i] = round((-1 / k) * (1 - long_pct), 3)
         return pd.Series(positions, index=self.tickers)
 
     def _get_model(self, model, **kwargs):
