@@ -77,10 +77,11 @@ class Statistics:
         if save_weights:
             self.position_weights.to_csv(name + '_weights.csv')
         if save_predictions:
-            pd.join(self.predicted_returns, self.stock_returns, lsuffix='predicted_', rsuffix='actual_')\
+            self.predicted_returns.join(self.stock_returns, lsuffix='_predicted', rsuffix='_actual')\
                 .to_csv(name + '_predictions.csv')
     def get_full_qs(self):
-        qs.reports.full(self.portfolio_returns['factors'], periods_per_year=timedelta_intervals[self.testing_model.interval])
+        qs.reports.full(self.portfolio_returns['factors'], benchmark=self.spy_baseline,
+                        periods_per_year=timedelta_intervals[self.testing_model.interval])
 
     def get_html(self):
         qs.reports.html(self.portfolio_returns['factors'], output='factor_model.html',
