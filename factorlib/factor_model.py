@@ -52,13 +52,16 @@ class FactorModel:
             start_date: datetime = None,
             end_date: datetime = None,
             anchored=True,
-            k=100,
+            k_pct=0.2,
+            long_pct=0.5,
             long_only=False,
+            short_only=False,
             pred_time='t+1',
             train_freq=None, **kwargs):
 
         assert (self.interval == 'D' or self.interval == 'W' or self.interval == 'M' or self.interval == 'Y'), \
             'Walk forward optimization currently only supports daily, weekly, monthly, or yearly intervals'
+        assert (not (long_only and short_only)), 'long_only and short_only cannot both be True'
 
         if start_date is not None:
             assert (start_date > self.earliest_start), 'start_date must be after earliest start date ' \
@@ -98,6 +101,7 @@ class FactorModel:
         training_start = start_date
         training_start = _get_end_convention(training_start, frequency)
         training_end = start_date + train_interval
+        training_end = _get_end_convention(training_end, frequency)
         assert training_end < end_date, 'Training interval exceeds the total amount of data provided.'
         training_end = _get_end_convention(training_end, self.interval)
         self.model = XGBRegressor(n_jobs=-1, tree_method='hist', random_state=42, **kwargs)
@@ -187,8 +191,9 @@ class FactorModel:
         print(f'{expected_returns}\n')
 
         # get positions
-        positions = expected_returns.apply(self._get_positions, axis=0,
-                                           args=(k, long_only))
+        positions = expected_returns.apply(self._get_positions, axis=1,
+                                           k_pct=k_pct, long_pct=long_pct,
+                                           long_only=long_only, short_only=short_only)
         positions.index = positions.index.tz_localize(None)
 
         # align positions and returns
@@ -309,15 +314,29 @@ class FactorModel:
         from .statistics import Statistics
         return Statistics(portfolio_returns, self, predicted_returns=predicted_returns, stock_returns=returns)
 
-    def _get_positions(self, row, k=5, long_only=False):
-        """Given a quintile and a row, use pandas qcut to
-        create equal long short positions"""
-        # qcut also handles nans, so we don't have to worry about them
-        labels = pd.qcut(row, q=k, labels=False, duplicates='drop')
-        positions = pd.Series([0.0] * len(row), index=self.tickers)
-        if not long_only:
-            positions[labels == 0] = -1 / len(labels == 0)  # bottom quantile
-        positions[labels == k - 1] = 1 / len(labels == k - 1)  # top quantile
+    def _get_positions(self, row, k_pct=0.2, long_pct=0.5, long_only=False, short_only=False):
+        """Given a row of returns and a percentage of stocks to long and short,
+        return a row of positions of equal long and short positions, with weights
+        equal to long_pct and 1 - long_pct respectively."""
+
+        num_na = int(row.isna().sum())
+        indices = np.argsort(row)[:-num_na]  # sorted in ascending order
+        if num_na == 0:
+            indices = np.argsort(row)  # sorted in ascending order
+        k = int(np.floor(len(indices) * k_pct))
+        bottomk = indices[:k]
+        topk = indices[-k:]
+        positions = [0] * len(row)
+
+        if long_only:
+            long_pct = 1.0
+        elif short_only:
+            long_pct = 0.0
+
+        for i in topk:
+            positions[i] = (1 / k) * long_pct
+        for i in bottomk:
+            positions[i] = round((-1 / k) * (1 - long_pct), 2)
         return pd.Series(positions, index=self.tickers)
 
     def _get_model(self, model, **kwargs):
