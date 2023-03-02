@@ -72,7 +72,7 @@ class Statistics:
         if extra_baselines is not None:
             self.all_returns.extend(extra_baselines)
 
-    def to_csv(self, name: str, save_weights: bool = False, save_predictions: bool = False):
+    def to_csv(self, name: str, save_weights: bool = True, save_predictions: bool = True):
         self.portfolio_returns.to_csv(name + '_factors.csv')
         if save_weights:
             self.position_weights.to_csv(name + '_weights.csv')
