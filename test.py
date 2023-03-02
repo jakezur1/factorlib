@@ -142,8 +142,8 @@ statistics = model.wfo(returns_data,
                        k_pct=0.2, long_only=True,  # weight parameters
                        subsample=0.5, max_depth=3, colsample_bytree=0.5, reg_alpha=0.2)  # regularization parameters
 statistics.find_factor_significance()
-statistics.print_statistics_report()
 statistics.to_csv('wfo_results')
+statistics.print_statistics_report()
 statistics.get_full_qs()
 
 # statistics.get_html()
