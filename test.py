@@ -138,7 +138,8 @@ print('Fitting Alpha Factor Model...')
 
 statistics = model.wfo(returns_data,
                        train_interval=timedelta(days=365 * 5), anchored=False,  # interval parameters
-                       k_pct=0.2, short_only=True,  # weight parameters
+                       start_date=datetime(2008, 1, 1),
+                       k_pct=0.2, long_only=True,  # weight parameters
                        subsample=0.5, max_depth=3, colsample_bytree=0.5, reg_alpha=0.2)  # regularization parameters
 statistics.find_factor_significance()
 statistics.print_statistics_report()
