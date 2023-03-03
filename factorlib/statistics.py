@@ -8,7 +8,7 @@ import random
 from prettytable import PrettyTable
 from .utils import timedelta_intervals, _compsum
 import matplotlib.pyplot as plt
-
+import pickle
 
 class Statistics:
     def __init__(self, portfolio_returns, model: FactorModel,
@@ -108,6 +108,11 @@ class Statistics:
         corr = new_df / len(self.testing_model.tickers)
         corr.style.background_gradient(cmap='coolwarm')
         return corr
+
+    def save(self, name):
+        with open(f'{name}.p', 'wb') as f:
+            pickle.dump(self, f)
+
 
     def print_statistics_report(self):
         print()
