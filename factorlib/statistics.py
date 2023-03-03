@@ -131,7 +131,7 @@ class Statistics:
         print('Spearman correlation: ' + str(self.compute_spearman_rank()))
         self.compute_correlations()
         for returns in self.all_returns:
-            cum_returns.append((_compsum(returns) * 100).iloc[-1])
+            cum_returns.append(str(round((_compsum(returns) * 100).iloc[-1].values[0], 2)) + '%')
             sharpe.append(round(returns.sharpe(periods=timedelta_intervals[self.testing_model.interval]).values[0], 3))
             sortino.append(round(returns.sortino(periods=timedelta_intervals[self.testing_model.interval]).values[0], 3))
             cagr.append(str(round(returns.cagr().values[0] * 100, 2)) + '%')
