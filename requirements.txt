@@ -21,3 +21,4 @@ ipython
 Jupyter
 fastai
 pandas_ta
+pandarallel

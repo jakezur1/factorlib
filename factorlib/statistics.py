@@ -163,7 +163,7 @@ class Statistics:
         plt.show()
 
         qs.plots.returns(self.portfolio_returns, benchmark=self.spy_baseline)
-        qs.plots.snapshot(self.portfolio_returns)
+        # qs.plots.snapshot(self.portfolio_returns)
 
     def _get_random_positions(self, row, k):
         indices = np.argsort(row)  # ascending order

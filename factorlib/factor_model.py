@@ -1,8 +1,9 @@
 import warnings
 from typing import Literal
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import numpy as np
 import pandas as pd
+from pandarallel import pandarallel
 import yfinance as yf
 import time
 from datetime import datetime, timedelta
@@ -65,9 +66,10 @@ class FactorModel:
 
         if start_date is not None:
             assert (start_date > self.earliest_start), 'start_date must be after earliest start date ' \
-                                                       '(based on the data provided)'
+                                                 '(based on the data provided)'
         else:
             start_date = self.earliest_start
+
         if end_date is not None:
             assert (end_date < self.latest_end), 'end_date must be before latest end date'
         else:
@@ -89,7 +91,9 @@ class FactorModel:
         _, shifted_returns = _align_by_date_index(self.factors, shifted_returns)
 
         # stack the factors and returns of each ticker for easier training
+        start = time.time()
         training_data = self.factors.stack(level=0)
+        start = time.time()
         stacked_returns = shifted_returns.stack(level=0)
 
         # set the frequency of training
@@ -115,11 +119,8 @@ class FactorModel:
         loop_start = training_end
         loop_end = self.offset_datetime(end_date, sign=-1, override_interval=frequency)
         loop_range = pd.date_range(loop_start, loop_end, freq=frequency)
-        for index, date in enumerate(tqdm(loop_range)):
-            X_train = pd.DataFrame()
-            y_train = pd.Series(dtype=object)
-            start = time.time()
 
+        for index, date in enumerate(tqdm(loop_range)):
             # check if we should train the model on this iteration
             train_this_iteration = False
             if timedelta_intervals[self.interval] <= timedelta_intervals['M']:
@@ -136,15 +137,14 @@ class FactorModel:
                         train_this_iteration = True
             if index == 0:
                 train_this_iteration = True
-
             if train_this_iteration:
+                start = time.time()
                 X_train = training_data.loc[training_start:training_end]
                 y_train = stacked_returns.loc[training_start:training_end]
                 X_train, y_train = X_train.align(y_train, axis=0)
                 X_train = X_train.reset_index(level=0, drop=True)
                 y_train = y_train.reset_index(level=0, drop=True)
                 X_train, y_train = _clean_data(X_train, y_train, drop_columns=True)
-                # print('\nTook', time.time() - start, 'seconds to curate data')
 
                 start = time.time()
                 valid_columns = X_train.columns
@@ -163,7 +163,6 @@ class FactorModel:
 
                 for ticker in self.tickers:
                     prediction_data = self.factors[ticker][valid_columns].loc[pred_start:pred_end]
-
                     # if prediction_data.isna().sum().sum() >= 1:
                     #     curr_predictions[ticker] = np.nan
                     #     continue
@@ -312,7 +311,8 @@ class FactorModel:
 
         # importing here to avoid circular import
         from .statistics import Statistics
-        return Statistics(portfolio_returns, self, predicted_returns=predicted_returns, stock_returns=returns)
+        return Statistics(portfolio_returns, self, position_weights=positions, predicted_returns=predicted_returns,
+                          stock_returns=returns)
 
     def _get_positions(self, row, k_pct=0.2, long_pct=0.5, long_only=False, short_only=False):
         """Given a row of returns and a percentage of stocks to long and short,
