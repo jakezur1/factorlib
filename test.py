@@ -36,7 +36,7 @@ ff5 = pd.read_csv('./data/fff-daily.csv', index_col='Date', parse_dates=['Date']
 ff5.resample(interval).ffill()
 
 print('Grabbing Indices...')
-indices_df = yf.download('SPY BND TLT QQQ GDX TMF WTI VIX', start=start, end=end, interval='1d')['Adj Close']
+indices_df = yf.download('BND TLT QQQ GDX TMF WTI VIX', start=start, end=end, interval='1d')['Adj Close']
 indices_df.index = pd.to_datetime(indices_df.index).tz_localize(None).floor('D')
 indices_df = indices_df.resample(interval, convention='end').ffill()
 indices_returns = indices_df.pct_change(1)
@@ -134,12 +134,12 @@ print('Fitting Alpha Factor Model...')
 
 statistics = model.wfo(returns_data,
                        train_interval=timedelta(days=365 * 5), anchored=False,  # interval parameters
-                       start_date=datetime(2008, 1, 1),
+                       start_date=datetime(2007, 1, 1),
                        k_pct=0.2, long_only=True,  # weight parameters
-                       subsample=0.5, max_depth=3, colsample_bytree=0.5, reg_alpha=0.2)  # regularization parameters
+                       )  # regularization parameters
 statistics.find_factor_significance()
 statistics.print_statistics_report()
-statistics.to_csv('wfo_results')
 statistics.get_full_qs()
 
-# statistics.get_html()
+statistics.get_html()
+statistics.to_csv('wfo_results')
