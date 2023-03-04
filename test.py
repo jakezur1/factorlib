@@ -11,7 +11,6 @@ start = '2002-01-01'
 end = '2021-01-01'
 
 print('Reading in Stock Data...')
-
 stocks_data = pd.read_csv('./data/spy_data_daily.csv', index_col=0)
 stocks_data.index = pd.to_datetime(stocks_data.index).tz_localize(None).floor('D')
 stocks_data = stocks_data.resample(interval, convention='end').ffill()
@@ -22,12 +21,10 @@ date_df = add_datepart(date_df, 'date', drop=False, time=False)
 date_df.index = stocks_data.index
 
 print('Reading in Fundamentals Data...')
-
 fundamentals = df = pd.read_csv('./data/fundamentals_spy_only.csv', header=[0, 1], index_col=0)
 fundamentals.index = pd.to_datetime(fundamentals.index)
 
 tickers = fundamentals.columns.get_level_values(0).unique().tolist()
-
 new_tickers = list(set(tickers) & set(stocks_data.columns))
 fundamentals = fundamentals[new_tickers]
 
@@ -45,7 +42,6 @@ indices_df = indices_df.resample(interval, convention='end').ffill()
 indices_returns = indices_df.pct_change(1)
 
 print('Adding Factors...')
-
 # Fundamentals
 delta_fundamentals = Factor(tickers=new_tickers, interval=interval, data=fundamentals,
                             name='delta_fundamentals', transforms=[Momentum(window=1, pct_change=True).transform])

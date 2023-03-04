@@ -9,6 +9,8 @@ __all__ = ['_delocalize_datetime',
            '_clean_data',
            '_get_end_convention',
            'timedelta_intervals',
+           '_compsum',
+           '_parallel_loc',
            'yf_intervals']
 
 
@@ -90,6 +92,10 @@ def _get_end_convention(date: datetime, interval: str):
 def _compsum(returns):
     """Calculates rolling compounded returns"""
     return returns.add(1).cumprod() - 1
+
+
+def _parallel_loc(series: pd.Series, keys):
+    return series.loc[keys]
 
 
 timedelta_intervals = {
