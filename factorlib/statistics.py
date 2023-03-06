@@ -118,7 +118,7 @@ class Statistics:
         for ticker in self.model.tickers[1:]:
             new_df.add(self.model.factors[ticker].corr())
         corr = new_df / len(self.model.tickers)
-        corr = corr.style.background_gradient(axis=None, cmap='coolwarm')
+        corr = corr.style.background_gradient(axis=None, cmap='YlGn')
         return corr
 
     def save(self, name, save_plots: bool = True):
@@ -174,10 +174,6 @@ class Statistics:
         statsTable.add_row(win_rate)
         print(statsTable)
         print()
-
-        print('Factor correlations:')
-        corr_matrix = self.compute_correlations()
-        print(corr_matrix)
 
         fig, axs = plt.subplots(2, 1, figsize=(15, 20))
         fontsize = 18
