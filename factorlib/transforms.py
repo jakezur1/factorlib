@@ -128,6 +128,7 @@ class KalmanFilter:
 
         kalman_filtered_means = data.copy(deep=True)
         kalman_filtered_stdevs = data.copy(deep=True)
+
         for ticker in data.columns.get_level_values(0).unique():
             for factor in data.loc[:, ticker].columns.unique():
                 mean, cov = k_filter.filter(data.loc[:, (ticker, factor)])
