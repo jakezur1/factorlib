@@ -129,6 +129,7 @@ dmypy.json
 .pyre/
 
 data/
+results/
 *.csv
 *.txt
 .idea/

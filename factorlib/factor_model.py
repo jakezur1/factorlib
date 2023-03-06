@@ -3,7 +3,6 @@ from typing import Literal
 from tqdm.auto import tqdm
 import numpy as np
 import pandas as pd
-from pandarallel import pandarallel
 import yfinance as yf
 import time
 from datetime import datetime, timedelta
@@ -62,11 +61,20 @@ class FactorModel:
 
         assert (self.interval == 'D' or self.interval == 'W' or self.interval == 'M' or self.interval == 'Y'), \
             'Walk forward optimization currently only supports daily, weekly, monthly, or yearly intervals'
+
+        if train_freq is not None:
+            print('the train_freq parameter does not have stable implementation yet. '
+                  'Defaulting to monthly (\'M\') training.')
+            if timedelta_intervals[train_freq] > timedelta_intervals[self.interval]:
+                print('The chose train_freq is a shorter interval than the model interval. '
+                      'Defaulting to monthly (\'M\') training.')
+                train_freq = 'M'
+
         assert (not (long_only and short_only)), 'long_only and short_only cannot both be True'
 
         if start_date is not None:
             assert (start_date > self.earliest_start), 'start_date must be after earliest start date ' \
-                                                 '(based on the data provided)'
+                                                       '(based on the data provided)'
         else:
             start_date = self.earliest_start
 
@@ -98,10 +106,14 @@ class FactorModel:
 
         # set the frequency of training
         frequency = None
-        if timedelta_intervals[self.interval] >= timedelta_intervals['M']:
-            frequency = 'M'
+        if train_freq is None:
+            if timedelta_intervals[self.interval] >= timedelta_intervals['M']:
+                frequency = 'M'
+            else:
+                frequency = self.interval
         else:
-            frequency = self.interval
+            frequency = train_freq
+
         training_start = start_date
         training_start = _get_end_convention(training_start, frequency)
         training_end = start_date + train_interval
@@ -112,8 +124,11 @@ class FactorModel:
 
         # perform walk forest optimization on factors data and record expected returns
         # at each time step
+
+        # initialize statistics data
         expected_returns = pd.DataFrame()
         expected_returns_index = []
+        training_spearman = pd.Series(dtype=object)
 
         # using for loop for tqdm progress bar
         loop_start = training_end
@@ -137,19 +152,29 @@ class FactorModel:
                         train_this_iteration = True
             if index == 0:
                 train_this_iteration = True
+
             if train_this_iteration:
                 start = time.time()
                 X_train = training_data.loc[training_start:training_end]
                 y_train = stacked_returns.loc[training_start:training_end]
                 X_train, y_train = X_train.align(y_train, axis=0)
-                X_train = X_train.reset_index(level=0, drop=True)
-                y_train = y_train.reset_index(level=0, drop=True)
                 X_train, y_train = _clean_data(X_train, y_train, drop_columns=True)
 
                 start = time.time()
                 valid_columns = X_train.columns
                 self.model.fit(X_train, y_train)
                 # print('Took', time.time() - start, 'seconds to fit model')
+
+                if index is not 0:
+                    training_predictions = self.predict(X_train)
+                    training_predictions = pd.DataFrame(training_predictions, index=X_train.index)
+                    training_predictions = training_predictions.unstack(level=1).droplevel(0, axis=1)
+                    X_train = X_train.unstack(level=1).swaplevel(1, 0, axis=1)
+                    y_train = y_train.unstack(level=1)
+                    returns_for_spearman = returns.loc[X_train.index]
+                    spearman = returns_for_spearman.corrwith(training_predictions, method='spearman', axis=1).mean()
+                    spearman = pd.Series(spearman, index=[training_predictions.index[-1]])
+                    training_spearman = pd.concat([training_spearman, spearman])
 
                 # get predictions
                 # this is our OOS sample test (that's one timestep ahead)
@@ -159,8 +184,8 @@ class FactorModel:
                 pred_start = pd.to_datetime(pred_start)
                 pred_start = _get_end_convention(pred_start, self.interval)
                 pred_end = _get_end_convention(pred_start, frequency)
-                curr_predictions = pd.DataFrame()
 
+                curr_predictions = pd.DataFrame()
                 for ticker in self.tickers:
                     prediction_data = self.factors[ticker][valid_columns].loc[pred_start:pred_end]
                     # if prediction_data.isna().sum().sum() >= 1:
@@ -168,8 +193,8 @@ class FactorModel:
                     #     continue
                     curr_predictions[ticker] = self.model.predict(prediction_data).flatten()
                     expected_returns_index.extend(prediction_data.index.values)
+
                 expected_returns = pd.concat([expected_returns, curr_predictions], axis=0)
-                # print('Took', time.time() - start, 'seconds to get expected returns\n')
 
             # calculate new intervals to train
             if not anchored:
@@ -182,6 +207,8 @@ class FactorModel:
             training_end = np.array([training_end], dtype='datetime64[D]')[0]
             training_end = pd.to_datetime(training_end)
             training_end = _get_end_convention(training_end, self.interval)
+
+        training_spearman = training_spearman.resample(self.interval).bfill()
 
         expected_returns_index = np.array(expected_returns_index, dtype='datetime64[D]')
         expected_returns_index = np.unique(expected_returns_index)
@@ -206,7 +233,7 @@ class FactorModel:
         # importing here to avoid circular import
         from .statistics import Statistics
         return Statistics(portfolio_returns, self, predicted_returns=expected_returns, stock_returns=returns,
-                          position_weights=positions)
+                          position_weights=positions, training_spearman=training_spearman)
 
     def fit(self, returns: pd.DataFrame, model: ModelType, voting_models=None,
             pred_time='t+1',
