@@ -134,13 +134,10 @@ print('Fitting Alpha Factor Model...')
 # statistics = model.backtest(datetime(2014, 1, 1), datetime(2022, 11, 1), returns=returns_data, long_pct=1)
 statistics = model.wfo(returns_data,
                        train_interval=timedelta(days=365 * 5), anchored=True,  # interval parameters
-                       start_date=datetime(2014, 1, 1),
                        k_pct=0.2, long_only=True,)  # weight parameters
 
-# statistics = Statistics()
-# statistics.load('./results/wfo_stats.p')
 statistics.print_statistics_report()
-# statistics.get_full_qs()
+statistics.get_full_qs()
 
 statistics.get_html()
 statistics.to_csv('./results/wfo_results')
