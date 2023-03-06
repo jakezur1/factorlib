@@ -1,4 +1,3 @@
-import inspect
 import numpy as np
 import pandas as pd
 import pywt
@@ -7,12 +6,20 @@ from scipy.signal import butter, lfilter, medfilt
 from scipy.ndimage import gaussian_filter
 import statsmodels.api as sm
 
+
 # TODO: Avellanada PCA transformation
 # TODO: signature transformation from https://kormilitzin.github.io/the-signature-method-in-machine-learning/
 
 
 def log_transform(data: pd.DataFrame):
     logged_data = np.log(data)
+
+    logged_data = _rename_columns_after_transform(logged_data, transform='logged')
+    return logged_data
+
+
+def log_diff_transform(data: pd.DataFrame):
+    logged_data = np.log(data) - np.log(data.shift(1))
 
     logged_data = _rename_columns_after_transform(logged_data, transform='logged')
     return logged_data
@@ -84,11 +91,16 @@ class Rank:
 
 
 class Momentum:
-    def __init__(self, window=30):
+    def __init__(self, window=30, pct_change=False):
         self.window = window
+        self.pct_change = pct_change
+        
 
     def transform(self, data):
-        momentum = data.diff(self.window)
+        if self.pct_change:
+            momentum = data.pct_change(self.window)
+        else:
+            momentum = data.diff(self.window)
         momentum = _rename_columns_after_transform(momentum, transform='momentum', attribute=str(self.window))
         return momentum
 
@@ -223,15 +235,3 @@ def _rename_columns_after_transform(data, transform, attribute=''):
     new_columns = dict(zip(data.columns.get_level_values(1), new_columns))
     data.rename(columns=new_columns, inplace=True, level=1)
     return data
-
-
-def _get_defining_class(meth):
-    if inspect.ismethod(meth):
-        for cls in inspect.getmro(meth.__self__.__class__):
-            if meth.__name__ in cls.__dict__:
-                return cls
-    if inspect.isfunction(meth):
-        return getattr(inspect.getmodule(meth),
-                       meth.__qualname__.split('.<locals>', 1)[0].rsplit('.', 1)[0],
-                       None)
-    return None

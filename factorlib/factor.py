@@ -1,22 +1,5 @@
 import pandas as pd
 import numpy as np
-import yfinance as yf
-
-yf_intervals = {
-    '1m': '1m',
-    '2m': '2m',
-    '5m': '5m',
-    '15m': '15m',
-    '30m': '30m',
-    '60m': '60m',
-    '90m': '90m',
-    '1h': '1h',
-    'D': '1d',
-    '5D': '5d',
-    'W': '1wk',
-    'M': '1mo',
-    '3M': '3mo',
-}
 
 
 class Factor:
@@ -31,6 +14,9 @@ class Factor:
 
         try:
             self.data.index = pd.to_datetime(self.data.index)
+            self.start = self.data.index[0]
+            self.end = self.data.index[-1]
+
         except Exception as e:
             print(f'could not convert index to datetime of factor {self.name}, moving on.')
 
@@ -43,6 +29,7 @@ class Factor:
             "general_factor and price_data cannot both be True"
         if general_factor:
             index = data.index
+            data = data.add_suffix(f'_{self.name}')
             multi_index = pd.MultiIndex.from_product([self.tickers, data.columns])
             factor_values = np.tile(data.values, (1, len(self.tickers)))
             multi_index_factors = pd.DataFrame(factor_values, columns=multi_index, index=index)
@@ -50,7 +37,7 @@ class Factor:
         elif price_data:
             index = data.index
             data = data[self.tickers]
-            multi_index = pd.MultiIndex.from_product([self.tickers, ['close']])
+            multi_index = pd.MultiIndex.from_product([self.tickers, [self.name]])
             multi_index_prices = pd.DataFrame(data.values, columns=multi_index, index=index)
             multi_index_prices.columns = multi_index_prices.columns.set_levels(data.columns, level=0)
             self.data = multi_index_prices

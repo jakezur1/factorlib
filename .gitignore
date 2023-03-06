@@ -129,6 +129,8 @@ dmypy.json
 .pyre/
 
 data/
+*.p
+*.png
 *.csv
 *.txt
 .idea/
