@@ -5,6 +5,7 @@ from fastai.tabular.all import add_datepart
 from factorlib.factor_model import FactorModel
 from factorlib.factor import Factor
 from factorlib.transforms import *
+from factorlib.statistics import Statistics
 
 interval = 'D'
 start = '2002-01-01'
@@ -76,7 +77,7 @@ volatility = Factor(tickers=new_tickers, interval=interval, data=returns_data, p
 returns_shifted_one = Factor(tickers=new_tickers, interval=interval, data=returns_data.shift(1), price_data=True,
                              name='returns_shifted_1')
 returns_shifted_seven = Factor(tickers=new_tickers, interval=interval, data=returns_data.shift(7), price_data=True,
-                             name='returns_shifted_7')
+                               name='returns_shifted_7')
 returns_shifted_20 = Factor(tickers=new_tickers, interval=interval, data=returns_data.shift(20), price_data=True,
                             name='returns_shifted_20')
 sma_3 = Factor(tickers=new_tickers, interval=interval, data=stocks_data, price_data=True, name='sma_3',
@@ -131,15 +132,16 @@ print('Fitting Alpha Factor Model...')
 # model.fit(returns_data.loc[datetime(2002, 1, 1):datetime(2022, 11, 1)],
 #           'xgb', time='t+1', subsample=0.8, reg_lambda=1.2, reg_alpha=0.5)
 # statistics = model.backtest(datetime(2014, 1, 1), datetime(2022, 11, 1), returns=returns_data, long_pct=1)
-
 statistics = model.wfo(returns_data,
                        train_interval=timedelta(days=365 * 5), anchored=False,  # interval parameters
-                       start_date=datetime(2007, 1, 1),
-                       k_pct=0.2, long_only=True,  # weight parameters
-                       )  # regularization parameters
-statistics.find_factor_significance()
+                       start_date=datetime(2014, 1, 1),
+                       k_pct=0.2, long_only=True,)  # weight parameters
+
+# statistics = Statistics()
+# statistics.load('./results/wfo_stats.p')
 statistics.print_statistics_report()
-statistics.get_full_qs()
+# statistics.get_full_qs()
 
 statistics.get_html()
-statistics.to_csv('wfo_results')
+statistics.to_csv('./results/wfo_results')
+statistics.save('./results/wfo_stats')
