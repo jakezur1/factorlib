@@ -4,6 +4,7 @@ from tqdm.auto import tqdm
 import numpy as np
 import pandas as pd
 import yfinance as yf
+import pickle
 import time
 from datetime import datetime, timedelta
 from sklearn.ensemble import *
@@ -235,51 +236,14 @@ class FactorModel:
         return Statistics(portfolio_returns, self, predicted_returns=expected_returns, stock_returns=returns,
                           position_weights=positions, training_spearman=training_spearman)
 
-    def fit(self, returns: pd.DataFrame, model: ModelType, voting_models=None,
-            pred_time='t+1',
-            window=60,
-            random_state=42,
-            test_split=0.3, **kwargs):
+    def save(self, name):
+        with open(f'{name}.p', 'wb') as f:
+            pickle.dump(self, f)
 
-        # shift returns back by 'time' time steps
-        returns = _shift_by_time_step(pred_time, returns)
-
-        # ensure that index is datetime and delocalized
-        returns = _delocalize_datetime(returns)
-
-        # align factor dates to be at the latest first date and earliest last date
-        _, returns = _align_by_date_index(self.factors, returns)
-        dates = returns.index
-
-        # dates_train, dates_test = train_test_split(dates, test_size=test_split, random_state=42, shuffle=True)
-        X_train = pd.DataFrame()
-        # X_test = pd.DataFrame()
-        y_train = pd.Series(dtype=float)
-        # y_test = pd.Series(dtype=float)
-        for ticker in self.tickers:
-            X_train = pd.concat([X_train, self.factors[ticker].loc[dates]], axis=0)
-            y_train = pd.concat([y_train, returns[ticker].loc[dates]], axis=0)
-
-            # X_test = pd.concat([X_test, self.factors[ticker].loc[dates_test]], axis=0)
-            # y_test = pd.concat([y_test, returns[ticker].loc[dates_test]], axis=0)
-
-        X_train, y_train = _clean_data(X_train, y_train)
-        # X_test, y_test = _clean_data(X_test, y_test)
-
-        if model == 'linear':
-            self.model = RollingOLS(y_train, X_train, window=window).fit()
-            return self.model
-        elif model == 'voting':
-            assert len(voting_models) > 1
-            self.model = VotingRegressor(estimators=[(model, self._get_model(model, **kwargs))
-                                                     for model in voting_models])
-        else:
-            self.model = self._get_model(model, **kwargs)
-        self.model.fit(X_train, y_train)
-
-        print(f'model score on train: {self.model.score(X_train, y_train)}')
-        # print(f'model score on test: {self.model.score(X_test, y_test)}')
-        return self.model
+    def load(self, path):
+        with open(path, 'rb') as f:
+            loaded_model = pickle.load(f)
+        self.__dict__.update(loaded_model.__dict__)
 
     def predict(self, factors: pd.DataFrame):
         return self.model.predict(factors)
