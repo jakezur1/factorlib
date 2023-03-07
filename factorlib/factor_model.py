@@ -165,7 +165,7 @@ class FactorModel:
                 self.model.fit(X_train, y_train)
                 # print('Took', time.time() - start, 'seconds to fit model')
 
-                if index is not 0:
+                if index != 0:
                     training_predictions = self.predict(X_train)
                     training_predictions = pd.DataFrame(training_predictions, index=X_train.index)
                     training_predictions = training_predictions.unstack(level=1).droplevel(0, axis=1)
