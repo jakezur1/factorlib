@@ -58,7 +58,8 @@ class FactorModel:
             long_only=False,
             short_only=False,
             pred_time='t+1',
-            train_freq=None, **kwargs):
+            train_freq=None,
+            candidates=None, **kwargs):
 
         assert (self.interval == 'D' or self.interval == 'W' or self.interval == 'M' or self.interval == 'Y'), \
             'Walk forward optimization currently only supports daily, weekly, monthly, or yearly intervals'
@@ -217,6 +218,14 @@ class FactorModel:
         print('Expected returns: ')
         print(f'{expected_returns}\n')
 
+        if candidates is not None:
+            assert len(candidates.keys()) == len(expected_returns.index)
+            binary_mask = pd.DataFrame(np.nan, columns=self.tickers, index=expected_returns.index)
+            for date in candidates.keys():
+                binary_mask.loc[date, candidates[date]] = 1
+
+            expected_returns = expected_returns * binary_mask
+
         # get positions
         positions = expected_returns.apply(self._get_positions, axis=1,
                                            k_pct=k_pct, long_pct=long_pct,
@@ -247,63 +256,6 @@ class FactorModel:
 
     def predict(self, factors: pd.DataFrame):
         return self.model.predict(factors)
-
-    def backtest(self, start_date, end_date,
-                 returns=None,
-                 training_start_date=None,
-                 candidates=None,
-                 k=10,
-                 long_pct=0.5):
-        if returns is None:
-            stocks_data = yf.download(self.tickers, start=start_date, end=end_date,
-                                      interval=yf_intervals[self.interval])['Adj Close']
-            stocks_data.index = pd.to_datetime(stocks_data.index)
-            stocks_data.fillna(value=0, inplace=True)
-            returns = stocks_data.pct_change(1)
-            returns.dropna(inplace=True)
-            returns.index = pd.to_datetime(returns.index).tz_localize(None)
-        else:
-            returns = returns.loc[start_date:end_date]
-
-        returns.index = pd.to_datetime(returns.index)
-
-        expected_returns = pd.DataFrame()
-        for ticker in self.tickers:
-            expected_returns[ticker] = self.model.predict(self.factors[ticker].loc[start_date:end_date]).flatten()
-            expected_returns.index = self.factors[ticker].loc[start_date:end_date].index
-
-        predicted_returns = expected_returns
-
-        if candidates is not None:
-            assert len(candidates.keys()) == len(expected_returns.index)
-            binary_mask = pd.DataFrame(0, columns=self.tickers, index=expected_returns.index)
-            for date in candidates.keys():
-                binary_mask.loc[date, candidates[date]] = 1
-
-            expected_returns = expected_returns * binary_mask
-
-        # positions are predicted one day before
-
-        print("Expected Returns:")
-        print(expected_returns)
-        positions = expected_returns.apply(self._get_positions, axis=1,
-                                           args=(min(k, len(self.tickers) // 2), long_pct))
-        positions.index = positions.index.tz_localize(None)
-
-        positions.index = returns.index
-
-        if returns.index[0] > positions.index[0]:
-            positions = positions.loc[returns.index[0]:returns.index[-1]]
-        else:
-            returns = returns.loc[positions.index[0]:positions.index[-1]]
-
-        returns_per_stock = returns.mul(positions.shift(1))  # you have to shift positions by 1 day
-        portfolio_returns = returns_per_stock.sum(axis=1)
-
-        # importing here to avoid circular import
-        from .statistics import Statistics
-        return Statistics(portfolio_returns, self, position_weights=positions, predicted_returns=predicted_returns,
-                          stock_returns=returns)
 
     def _get_positions(self, row, k_pct=0.2, long_pct=0.5, long_only=False, short_only=False):
         """Given a row of returns and a percentage of stocks to long and short,
