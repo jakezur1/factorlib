@@ -141,7 +141,7 @@ statistics = model.wfo(returns_data,
                        k_pct=0.2, long_only=True,)  # weight parameters
 
 statistics.print_statistics_report()
-statistics.get_full_qs()
+# statistics.get_full_qs()
 
 statistics.get_html()
 statistics.to_csv('./results/wfo_results')

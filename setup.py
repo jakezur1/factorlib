@@ -32,6 +32,6 @@ setup(
                       'fastai',
                       'pandas_ta',
                       'pandarallel',
-                      ],
+                      'shap'],
 )
 

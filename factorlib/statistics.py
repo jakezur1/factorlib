@@ -9,6 +9,7 @@ from prettytable import PrettyTable
 from .utils import timedelta_intervals, _compsum
 import matplotlib.pyplot as plt
 import pickle
+import shap
 
 
 class Statistics:
@@ -16,6 +17,7 @@ class Statistics:
                  predicted_returns: pd.DataFrame = None,
                  position_weights: pd.DataFrame = None,
                  training_spearman: pd.Series = None,
+                 shap_values: np.array = None,
                  stock_returns: pd.DataFrame = None,
                  extra_baselines: [pd.Series] = None):
 
@@ -28,6 +30,7 @@ class Statistics:
             self.portfolio_returns = portfolio_returns
             self.position_weights = position_weights
             self.training_spearman = training_spearman
+            self.shap_values = shap_values
             self.testing_spearman = predicted_returns.corrwith(stock_returns, axis=1).expanding(1).mean()[10:]
 
             self.portfolio_returns.index = pd.to_datetime(self.portfolio_returns.index).tz_localize(None) \
@@ -120,6 +123,15 @@ class Statistics:
         corr = new_df / len(self.model.tickers)
         corr = corr.style.background_gradient(axis=None, cmap='YlGn')
         return corr
+
+    def get_factor_names(self):
+        for factor in self.model.factors.columns.get_level_values(1).unique():
+            print(factor)
+
+    def plot_beeswarm_shaps(self, num_features: int = None):
+        if num_features is None:
+            num_features = len(self.model.factors.columns.get_level_values(1).unique())
+        shap.plots.beeswarm(self.shap_values, num_features)
 
     def save(self, name, save_plots: bool = True):
         if save_plots:

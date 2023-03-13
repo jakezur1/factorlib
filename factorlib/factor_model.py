@@ -6,6 +6,7 @@ import pandas as pd
 import yfinance as yf
 import pickle
 import time
+import shap
 from datetime import datetime, timedelta
 from sklearn.ensemble import *
 from statsmodels.regression.rolling import RollingOLS
@@ -22,6 +23,8 @@ ModelType = Literal['hgb', 'gbr', 'adaboost', 'rf', 'et', 'linear', 'voting', 'x
 class FactorModel:
     def __init__(self, tickers=None, interval='D'):
         assert tickers is not None, 'tickers cannot be None'
+
+        shap.initjs()
 
         self.tickers = tickers
         self.interval = interval
@@ -137,6 +140,8 @@ class FactorModel:
         loop_end = self.offset_datetime(end_date, sign=-1, override_interval=frequency)
         loop_range = pd.date_range(loop_start, loop_end, freq=frequency)
 
+        shap_values = []
+
         for index, date in enumerate(tqdm(loop_range)):
             # check if we should train the model on this iteration
             train_this_iteration = False
@@ -164,7 +169,13 @@ class FactorModel:
 
                 start = time.time()
                 valid_columns = X_train.columns
+
                 self.model.fit(X_train, y_train)
+
+                if index == (len(loop_range) - 1):
+                    explainer = shap.Explainer(self.model)
+                    shap_values = explainer(X_train)
+
                 # print('Took', time.time() - start, 'seconds to fit model')
 
                 if index != 0:
@@ -219,12 +230,18 @@ class FactorModel:
         print(f'{expected_returns}\n')
 
         if candidates is not None:
-            assert len(candidates.keys()) == len(expected_returns.index)
-            binary_mask = pd.DataFrame(np.nan, columns=self.tickers, index=expected_returns.index)
-            for date in candidates.keys():
-                binary_mask.loc[date, candidates[date]] = 1
+            if len(candidates.keys()) != len(expected_returns.index):
+                candidates_start = candidates.keys()[0]
+                candidates_end = candidates.keys()[-1]
+                print('Candidates were provided, but only for the date range between', candidates_start, 'and',
+                      candidates_end, '. Only backtesting positions for these dates.')
+                expected_returns.loc[candidates_start: candidates_end]
 
-            expected_returns = expected_returns * binary_mask
+            nan_mask = pd.DataFrame(np.nan, columns=self.tickers, index=expected_returns.index)
+            for date in candidates.keys():
+                nan_mask.loc[date, candidates[date]] = 1
+
+            expected_returns = expected_returns * nan_mask
 
         # get positions
         positions = expected_returns.apply(self._get_positions, axis=1,
@@ -243,7 +260,7 @@ class FactorModel:
         # importing here to avoid circular import
         from .statistics import Statistics
         return Statistics(portfolio_returns, self, predicted_returns=expected_returns, stock_returns=returns,
-                          position_weights=positions, training_spearman=training_spearman)
+                          position_weights=positions, training_spearman=training_spearman, shap_values=shap_values)
 
     def save(self, name):
         with open(f'{name}.p', 'wb') as f:
