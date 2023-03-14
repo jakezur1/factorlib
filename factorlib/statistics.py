@@ -31,7 +31,8 @@ class Statistics:
             self.position_weights = position_weights
             self.training_spearman = training_spearman
             self.shap_values = shap_values
-            self.testing_spearman = predicted_returns.corrwith(stock_returns, axis=1).expanding(1).mean()[10:]
+            self.testing_spearman = predicted_returns.corrwith(stock_returns, method='spearman', axis=1).expanding(1) \
+                .mean()[10:]
 
             self.portfolio_returns.index = pd.to_datetime(self.portfolio_returns.index).tz_localize(None) \
                 .floor('D')
