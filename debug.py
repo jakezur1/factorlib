@@ -13,7 +13,7 @@ from factorlib.utils.helpers import _get_nearest_month_end, _set_index_names_ada
     get_subset_by_date_bounds
 
 
-with open('./data/sp500_candidates.pkl', 'rb') as p:
+with open('data/raw/sp500_candidates.pkl', 'rb') as p:
     candidates = pkl.load(p)
 
 kwargs = {

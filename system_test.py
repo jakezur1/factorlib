@@ -92,7 +92,7 @@ factor2 = Factor(name='fund_ratio', interval=INTERVAL, data=factor2_data, ticker
 factor_model.add_factor(factor2, replace=True)
 del factor2_data, factor2
 
-with open('./data/sp500_candidates.pkl', 'rb') as p:
+with open('data/raw/sp500_candidates.pkl', 'rb') as p:
     candidates = pkl.load(p)
 
 kwargs = {
