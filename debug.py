@@ -6,7 +6,7 @@ from pathlib import Path
 
 from factorlib.factor_model import FactorModel
 from factorlib.types import PortOptOptions
-
+from factorlib.utils.system import get_raw_data_dir
 
 with open('data/raw/sp500_candidates.pkl', 'rb') as p:
     candidates = pkl.load(p)
@@ -30,14 +30,13 @@ kwargs = {
     'num_boost_round': 1000
 }
 INTERVAL = 'B'
-DATA_FOLDER = Path('./data')
-returns = pd.read_parquet(DATA_FOLDER / 'sp500_returns.parquet.brotli')
+returns = pd.read_parquet(get_raw_data_dir() / 'sp500_returns.parquet.brotli')
 
 factor_model = FactorModel(load_path=Path('experiments/test_00/test_00.alpha')).load()
-factor_model.wfo(returns,
-                 train_interval=pd.DateOffset(years=5), train_freq='M', anchored=False,
-                 start_date=datetime(2017, 11, 5), end_date=datetime(2022, 12, 20),
-                 candidates=candidates,
-                 save_dir=Path('./experiments'), **kwargs,
-                 port_opt=PortOptOptions.InverseVariance)
-
+stats = factor_model.wfo(returns,
+                         train_interval=pd.DateOffset(years=5), train_freq='M', anchored=False,
+                         start_date=datetime(2017, 11, 5), end_date=datetime(2022, 12, 20),
+                         candidates=candidates,
+                         save_dir=Path('./experiments'), **kwargs,
+                         port_opt=PortOptOptions.MeanVariance)
+print('hello')

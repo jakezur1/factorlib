@@ -19,7 +19,7 @@ class Statistics:
                  portfolio_returns: pd.Series = None,
                  expected_returns: pd.DataFrame = None,
                  true_returns: pd.DataFrame = None,
-                 positions_weights: pd.DataFrame = None,
+                 position_weights: pd.DataFrame = None,
                  shap_values: dict[int, np.ndarray | list] = None,
                  training_ic: Optional[pd.Series] = None,
                  extra_baselines: [pd.Series] = None,
@@ -37,7 +37,7 @@ class Statistics:
             self.expected_returns = expected_returns
             self.true_returns = true_returns
 
-            self.position_weights = positions_weights
+            self.position_weights = position_weights
 
             self.training_ic = training_ic
             self.shap_values
@@ -57,7 +57,7 @@ class Statistics:
             self.extra_baselines = extra_baselines
             self.shap_values = shap_values
 
-    def get_stats_report(self):
+    def stats_report(self):
         print()
         print('{:<35s}'.format('FACTORLIB STATS REPORT'))
         print('{:<35s}'.format('=============================='))
@@ -72,7 +72,7 @@ class Statistics:
         volatility = ['volatility']
         win_rate = ['win rate']
 
-        print('Information coefficient (spearman): ' + str(self.compute_spearman_rank()))
+        print('Information coefficient (spearman): ' + str(self.spearman_rank()))
         all_returns = [self.portfolio_returns, self.spy_baseline]
 
         column_headers = [x.name for x in all_returns]

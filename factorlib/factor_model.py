@@ -17,6 +17,7 @@ from xgboost import XGBRegressor
 import lightgbm as lgb
 
 from factorlib.factor import Factor
+from factorlib.stats import Statistics
 from factorlib.types import ModelType, FactorlibUserWarning, PortOptOptions
 from factorlib.utils.helpers import _set_index_names_adaptive, shift_by_time_step, get_subset_by_date_bounds, \
     _get_nearest_month_end, _get_nearest_month_begin, clean_data
@@ -365,6 +366,10 @@ class FactorModel:
 
         if save_dir is not None:
             self.save(save_dir)
+
+        return Statistics(name=self.name, interval=self.interval, factors=self.factors,
+                          portfolio_returns=portfolio_returns, true_returns=returns, position_weights=positions,
+                          training_ic=training_spearman, shap_values=shap_values)
 
     def save(self, save_dir: Optional[Path] = Path('.')):
         with open(save_dir / self.name / f'{self.name}.alpha', 'wb') as f:

@@ -33,6 +33,10 @@ def get_data_dir() -> Path:
     return get_root_dir() / 'data'
 
 
+def get_raw_data_dir() -> Path:
+    return get_data_dir() / 'raw'
+
+
 def get_factors_dir() -> Path:
     return get_root_dir() / 'factors'
 
