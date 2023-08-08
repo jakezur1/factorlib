@@ -1,7 +1,4 @@
 import shap
-import sys
-import threading
-import time
 import numpy as np
 import pandas as pd
 import quantstats as qs
@@ -13,18 +10,21 @@ from tqdm import tqdm
 from pathlib import Path
 
 from sklearn.ensemble import *
-from catboost import CatBoostRegressor
+from scipy.optimize import minimize
+from scipy.cluster.hierarchy import linkage
+from scipy.spatial.distance import pdist
 from xgboost import XGBRegressor
 import lightgbm as lgb
 
 from factorlib.factor import Factor
-from factorlib.utils.types import ModelType, FactorlibUserWarning
+from factorlib.types import ModelType, FactorlibUserWarning, PortOptOptions
 from factorlib.utils.helpers import _set_index_names_adaptive, shift_by_time_step, get_subset_by_date_bounds, \
     _get_nearest_month_end, _get_nearest_month_begin, clean_data
 from factorlib.utils.datetime_maps import timedelta_intervals
 from factorlib.utils.system import show_processing_animation, print_dynamic_line, print_warning, _spinner_animation
 
 shap.initjs()
+tqdm.pandas()
 
 
 class FactorModel:
@@ -121,6 +121,7 @@ class FactorModel:
             long_pct: float = 0.5,
             long_only: bool = False,
             short_only: bool = False,
+            port_opt: PortOptOptions = None,
             pred_time: str = 't+1',
             train_freq: str = None,
             candidates: dict = None,
@@ -170,41 +171,6 @@ class FactorModel:
                                                                          'full interval that you would like ' \
                                                                          'to perform wfo(...). Decrease your ' \
                                                                          'end_date, or provide the correct returns.'
-
-        all_valid_candidates = []
-        all_candidates = []
-        if candidates is not None:
-            # need to ensure we have candidates for every day
-            candidates = pd.Series(candidates)
-            candidates.index = pd.to_datetime(candidates.index)
-            candidates = get_subset_by_date_bounds(candidates, start_date, end_date)
-
-            # bfill after ffill to account for the first date, literally only one-edge case where this doesn't work
-            candidates = candidates.resample('B').ffill().fillna(method='bfill')
-
-            # need to get rid of candidates that aren't in returns
-            tickers_with_returns = returns.index.get_level_values('ticker').unique().tolist()
-            for name, item in candidates.items():
-                valid_tickers = [candidate for candidate in item if candidate in tickers_with_returns]
-                all_valid_candidates.extend(valid_tickers)
-                all_candidates.extend(item)
-                candidates[name] = valid_tickers
-
-            all_valid_candidates = np.unique(all_valid_candidates).tolist()
-            all_candidates = np.unique(all_candidates).tolist()
-            all_returns_present = all_valid_candidates == all_candidates
-            if not all_returns_present:
-                print_warning(
-                    message='You have passed a dict of candidates, but you do not have returns for all possible '
-                            'candidates in a given year. We have filtered your candidates down to the provided '
-                            f'returns, which includes {len(all_valid_candidates)} / {len(all_candidates)}. Depending '
-                            f'on the number of tickers for which you don\'t have returns, you may want to stop wfo() '
-                            f'and obtain the correct set of returns. Continuing...',
-                    category=FactorlibUserWarning.MissingData)
-
-            self.tickers = np.unique(all_valid_candidates).tolist()
-            del all_candidates
-            del all_valid_candidates
 
         start_date = _get_nearest_month_begin(start_date)
         end_date = _get_nearest_month_end(end_date)
@@ -316,40 +282,81 @@ class FactorModel:
         expected_returns.columns = expected_returns.columns.droplevel(
             [name for name in expected_returns.columns.names if name != 'ticker'])
 
+        all_valid_candidates = []
+        all_candidates = []
         if candidates is not None:
+            # need to ensure we have candidates for every day
+            candidates = pd.Series(candidates)
+            candidates.index = pd.to_datetime(candidates.index)
+            candidates = get_subset_by_date_bounds(candidates, start_date, end_date)
+
+            # bfill after ffill to account for the first date, literally only one-edge case where this doesn't work
+            candidates = candidates.resample('B').ffill().fillna(method='bfill')
+
             candidates = candidates.loc[(candidates.index >= pd.to_datetime(expected_returns.index[0])) &
                                         (candidates.index <= pd.to_datetime(expected_returns.index[-1]))]
             expected_returns, candidates = expected_returns.align(candidates, join='left', axis=0)
-            candidates.fillna(inplace=True, method='ffill')
+            candidates.fillna(method='ffill', inplace=True)
 
+            # need to get rid of candidates that aren't in returns
+            tickers_with_returns = returns.index.get_level_values('ticker').unique().tolist()
             nan_mask = pd.DataFrame(np.nan, columns=self.tickers, index=expected_returns.index)
             for date, sp500_list in candidates.items():
-                sp500_list = [ticker for ticker in sp500_list if ticker in self.tickers]
+                all_candidates.extend(sp500_list)
+                sp500_list = [ticker for ticker in sp500_list if ticker in tickers_with_returns]
                 if date in nan_mask.index:
                     nan_mask.loc[date][sp500_list] = 1
+                all_valid_candidates.extend(sp500_list)
 
             nan_mask, expected_returns = nan_mask.align(expected_returns, axis=1, join='left')
             expected_returns = expected_returns.mul(nan_mask)
 
-        positions = expected_returns.apply(self._get_positions, axis=1,
-                                           k_pct=k_pct, long_pct=long_pct,
-                                           long_only=long_only, short_only=short_only)
-        positions_start = positions.index[0]
-        positions_end = positions.index[-1]
+            all_valid_candidates = np.unique(all_valid_candidates).tolist()
+            all_candidates = np.unique(all_candidates).tolist()
+            all_returns_present = all_valid_candidates == all_candidates
+            if not all_returns_present:
+                print_warning(
+                    message='You have passed a dict of candidates, but you do not have returns for all possible '
+                            'candidates in a given year. We have filtered your candidates down to the provided '
+                            f'returns, which includes {len(all_valid_candidates)} / {len(all_candidates)}. Depending '
+                            f'on the number of tickers for which you don\'t have returns, you may want to stop wfo() '
+                            f'and obtain the correct set of returns. Continuing...',
+                    category=FactorlibUserWarning.MissingData)
+
+            self.tickers = np.unique(all_valid_candidates).tolist()
+            del all_candidates
+            del all_valid_candidates
 
         returns = shift_by_time_step(pred_time, returns, backwards=True)
         returns = pd.concat([returns, last_days_returns])
         mask = returns.index.duplicated(keep='first')
         returns = returns[~mask]
 
-        returns = get_subset_by_date_bounds(returns, positions_start, positions_end)
+        # get 3 months prior to start of expected returns
+        returns_start_date = self.offset_datetime(expected_returns.index.get_level_values('date')[0], interval='M', sign=-3)
+        returns = get_subset_by_date_bounds(returns,
+                                            start_date=returns_start_date,
+                                            end_date=expected_returns.index.get_level_values('date')[-1])
 
         returns = returns.unstack(level='ticker')
         returns.columns = returns.columns.droplevel(
             [name for name in expected_returns.columns.names if name != 'ticker'])
-        returns, positions = returns.align(positions, join='left', axis=0)
+        expected_returns = expected_returns[self.tickers]
+        returns = returns[self.tickers]
+
+        print('\nCalculating Position Weights:')
+        positions = expected_returns.progress_apply(self._get_positions, axis=1,
+                                                    k_pct=k_pct, long_pct=long_pct,
+                                                    long_only=long_only, short_only=short_only,
+                                                    returns=returns,
+                                                    port_opt=port_opt)
+
+        positions, returns = positions.align(returns, join='left', axis=0)
 
         returns_per_stock = returns.mul(positions.shift(1))  # you have to shift positions by 1 day
+        print('\nExpected Returns Per Stock:')
+        print(returns_per_stock)
+
         portfolio_returns = returns_per_stock.sum(axis=1)
         portfolio_returns.name = 'factors'
 
@@ -372,7 +379,9 @@ class FactorModel:
     def _get_positions(self, row, k_pct: float = 0.2,
                        long_pct: float = 0.5,
                        long_only: bool = False,
-                       short_only: bool = False):
+                       short_only: bool = False,
+                       returns: pd.DataFrame = None,
+                       port_opt: PortOptOptions = None):
         """Given a row of returns and a percentage of stocks to long and short,
         return a row of positions of equal long and short positions, with weights
         equal to long_pct and 1 - long_pct respectively."""
@@ -386,17 +395,182 @@ class FactorModel:
         topk = indices[-k:]
         positions = [0] * len(row)
 
-        if long_only:
-            long_pct = 1.0
-        elif short_only:
-            long_pct = 0.0
+        if port_opt is None:
+            if long_only:
+                long_pct = 1.0
+            elif short_only:
+                long_pct = 0.0
 
-        for i in topk:
-            positions[i] = round((1 / k) * long_pct, 8)
-        for i in bottomk:
-            positions[i] = round((-1 / k) * (1 - long_pct), 8)
+            for i in topk:
+                positions[i] = round((1 / k) * long_pct, 8)
+            for i in bottomk:
+                positions[i] = round((-1 / k) * (1 - long_pct), 8)
+        elif port_opt == 'mvp':
+            positions = self._mvp_option(row, positions, long_pct, returns, topk, bottomk)
+        elif port_opt == 'hrp':
+            positions = self._hrp_option(row, positions, long_pct, returns, topk, bottomk)
+        elif port_opt == 'iv':
+            positions = self._iv_option(row, positions, long_pct, returns, topk, bottomk)
 
         return pd.Series(positions, index=self.tickers)
+
+    def _mvp_option(self, row, positions,
+                    long_pct: float = None,
+                    returns: pd.DataFrame = None,
+                    topk: pd.Series = None,
+                    bottomk: pd.Series = None):
+        all_indices = pd.concat([topk, bottomk])
+
+        current_date = row.name
+        three_months_prior = self.offset_datetime(current_date, interval='M', sign=-3)
+        past_returns = get_subset_by_date_bounds(returns,
+                                                 start_date=three_months_prior,
+                                                 end_date=current_date).iloc[:-1]
+
+        subset_returns = past_returns.loc[:, all_indices.index]
+        cov_matrix = subset_returns.cov()
+
+        # Define the objective function (Portfolio Variance)
+        def portfolio_variance(weights):
+            return np.dot(weights.T, np.dot(cov_matrix, weights))
+
+        # Constraints: Sum of long weights = long_pct and sum of short weights = 1 - long_pct
+        long_constraint = {'type': 'eq', 'fun': lambda weights: np.sum(weights[:len(topk)]) - long_pct}
+        short_constraint = {'type': 'eq', 'fun': lambda weights: np.sum(weights[len(topk):]) + (1 - long_pct)}
+
+        constraints = [long_constraint, short_constraint]
+
+        # Set bounds: long positions for top k stocks, short positions for bottom k stocks
+        bounds = [(0, 1) for _ in range(len(topk))] + [(-1, 0) for _ in range(len(bottomk))]
+        initial_guess = [1. / len(all_indices) for _ in range(len(all_indices))]
+
+        # Perform the optimization to determine the best weights
+        solution = minimize(portfolio_variance, initial_guess, bounds=bounds, constraints=constraints)
+
+        # Extract the optimized weights from the solution and assign them to the positions
+        optimized_weights = solution.x
+        for i, weight in zip(all_indices, optimized_weights):
+            positions[i] = round(weight, 8)
+
+        # Normalize to ensure the absolute sum of weights is 1
+        total_abs_sum = np.sum(np.abs(positions))
+        positions /= total_abs_sum
+
+        return positions
+
+    def _iv_option(self, row, positions,
+                   long_pct: float = None,
+                   returns: pd.DataFrame = None,
+                   topk: pd.Series = None,
+                   bottomk: pd.Series = None):
+        all_indices = pd.concat([topk, bottomk])
+
+        current_date = row.name
+        three_months_prior = self.offset_datetime(current_date, interval='M', sign=-3)
+        past_returns = get_subset_by_date_bounds(returns,
+                                                 start_date=three_months_prior,
+                                                 end_date=current_date).iloc[:-1]
+        past_returns = past_returns[all_indices.index]
+        variance = past_returns.var()
+        inverse_variance = 1 / variance
+
+        topk_weights = inverse_variance[topk.index]
+        bottomk_weights = inverse_variance[bottomk.index]
+
+        # Normalize weights for the given long_pct
+        normalized_topk_weights = topk_weights / topk_weights.sum() * long_pct
+        normalized_bottomk_weights = bottomk_weights / bottomk_weights.sum() * (1 - long_pct)
+
+        for ticker, rank in topk.items():
+            positions[rank] = normalized_topk_weights[ticker]
+        for ticker, rank in bottomk.items():
+            positions[rank] = -normalized_bottomk_weights[ticker]
+
+        # Normalize to ensure the absolute sum of weights is 1
+        total_abs_sum = np.sum(np.abs(positions))
+        positions /= total_abs_sum
+
+        return positions
+
+    def _hrp_option(self, row, positions,
+                    long_pct: float = None,
+                    returns: pd.DataFrame = None,
+                    topk: pd.Series = None,
+                    bottomk: pd.Series = None):
+        all_indices = pd.concat([topk, bottomk])
+
+        current_date = row.name
+        three_months_prior = self.offset_datetime(current_date, interval='M', sign=-3)
+        past_returns = get_subset_by_date_bounds(returns,
+                                                 start_date=three_months_prior,
+                                                 end_date=current_date).iloc[:-1]
+        hrp_weights = self._calc_hrp(past_returns[all_indices.index])
+
+        # Calculate the sum of absolute long and short weights
+        long_sum = sum(hrp_weights[ticker] for ticker in topk.index)
+        short_sum = sum(hrp_weights[ticker] for ticker in bottomk.index)
+
+        # Adjustment factors based on long_pct
+        total_weight = long_sum + abs(short_sum)
+        long_adjustment = long_pct * total_weight / long_sum
+        short_adjustment = (1 - long_pct) * total_weight / abs(short_sum)
+
+        # Adjust the weights so the absolute values sum to 1, and we're market neutral
+        for ticker, rank in topk.items():
+            positions[rank] = hrp_weights[ticker] * long_adjustment
+        for ticker, rank in bottomk.items():
+            positions[rank] = -hrp_weights[ticker] * short_adjustment
+
+        # Normalize to ensure the absolute sum of weights is 1
+        total_abs_sum = np.sum(np.abs(positions))
+        positions /= total_abs_sum
+        return positions
+
+    @staticmethod
+    def _get_inverse_var_pf(cov):
+        ivp = 1. / np.diag(cov)
+        ivp /= ivp.sum()
+        return ivp
+
+    def _get_cluster_var(self, cov, c_items):
+        cov_ = cov.loc[c_items, c_items]
+        w_ = self._get_inverse_var_pf(cov_).reshape(-1, 1)
+        c_var = np.dot(np.dot(w_.T, cov_), w_)[0, 0]
+        return c_var
+
+    @staticmethod
+    def _get_quasi_diag(link):
+        link = link.astype(int)
+        sort_ix = pd.Series([link[-1, 0], link[-1, 1]])
+        num_items = link[-1, 3]
+        while sort_ix.max() >= num_items:
+            sort_ix.index = range(0, sort_ix.shape[0] * 2, 2)
+            df0 = sort_ix[sort_ix >= num_items]
+            i = df0.index
+            j = df0.values - num_items
+            sort_ix[i] = link[j, 0]
+            df0 = pd.Series(link[j, 1], index=i + 1)
+            sort_ix = pd.concat([sort_ix, df0])
+            sort_ix = sort_ix.sort_index()
+            sort_ix.index = range(sort_ix.shape[0])
+        return sort_ix.tolist()
+
+    def _calc_hrp(self, returns):
+        cov = returns.cov()
+        corr = returns.corr()
+        dist = ((1 - corr) / 2.) ** .5
+        link = linkage(pdist(dist), 'single')
+        sort_ix = self._get_quasi_diag(link)
+        sort_ix = corr.index[sort_ix].tolist()
+        hrp = pd.Series(1, index=sort_ix)
+        cluster_vars = [self._get_cluster_var(cov, [sort_ix[i]]) for i in range(len(sort_ix))]
+        for i in range(0, len(sort_ix) - 1):
+            scale = cluster_vars[i] / (cluster_vars[i] + cluster_vars[i + 1])
+            hrp[sort_ix[i]] = scale
+            hrp[sort_ix[i + 1]] = 1 - scale
+            cluster_vars[i + 1] = self._get_cluster_var(cov, [sort_ix[i], sort_ix[i + 1]])
+        hrp /= hrp.sum()
+        return hrp
 
     def _get_model(self, model_type: str, **kwargs):
         if model_type == 'hgb':
@@ -416,7 +590,18 @@ class FactorModel:
         else:
             print(message='The model you chose (model_type) has not been implemented yet. Please submit a request to '
                           'the factorlib github repository to expedite the implementation of this model. Defaulting '
-                          'to LightGBM.', category=FactorlibUserWarning.ParameterOverride)
+                          'to LightGBM.', category=FactorlibUserWarning.NotImplemented)
             self.model = None
 
         return self.model
+
+    def offset_datetime(self, date: datetime, interval: str, sign=1):
+        if interval == 'D':
+            date += sign * pd.DateOffset(days=1)
+        elif interval == 'W':
+            date += sign * pd.DateOffset(days=7)
+        elif interval == 'M':
+            date += sign * pd.DateOffset(months=1)
+        elif interval == 'Y':
+            date += sign * pd.DateOffset(years=1)
+        return date

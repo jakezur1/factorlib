@@ -3,14 +3,13 @@ import inspect
 import pandas as pd
 import sys
 import time
-import os
 import shutil
 import threading
 
 from pathlib import Path
 from functools import wraps
 
-from factorlib.utils.types import FactorlibUserWarning
+from factorlib.types import FactorlibUserWarning
 
 
 def is_frozen():

@@ -22,3 +22,9 @@ class FactorlibUserWarning:
     NotImplemented = 'NotImplemented'
     AmbiguousInterval = 'AmbiguousInterval'
     MissingData = 'MissingData'
+
+
+class PortOptOptions:
+    MeanVariance = 'mvp'
+    HierarchicalRiskParity = 'hrp'
+    InverseVariance = 'iv'

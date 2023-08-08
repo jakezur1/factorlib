@@ -10,8 +10,8 @@ from time import perf_counter_ns
 from tqdm import tqdm
 
 from factorlib.utils.helpers import _set_index_names_adaptive
-from factorlib.utils.types import SpliceBy
-from factorlib.utils.system import print_dynamic_line, print_warning
+from factorlib.types import SpliceBy
+from factorlib.utils.system import print_dynamic_line
 
 os.environ['RAY_verbose_spill_logs'] = '0'
 warnings.filterwarnings('ignore')

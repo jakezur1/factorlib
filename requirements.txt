@@ -15,3 +15,5 @@ pyarrow
 fastparquet
 ipywidgets
 catboost
+yfinance~=0.2.27
+prettytable~=3.8.0

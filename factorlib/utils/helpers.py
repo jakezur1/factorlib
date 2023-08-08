@@ -5,11 +5,7 @@ import warnings
 
 from datetime import datetime
 
-
-__all__ = [
-    '_get_nearest_month_end',
-    '_set_index_names_adaptive',
-]
+from factorlib.utils.system import FactorlibUserWarning, print_warning
 
 
 def shift_by_time_step(time: str, returns: pd.DataFrame, backwards: bool = False):
@@ -21,9 +17,9 @@ def shift_by_time_step(time: str, returns: pd.DataFrame, backwards: bool = False
         returns = returns.groupby('ticker').shift(-1 * int(shift))  # shift returns back
     else:
         returns = returns
-        # TODO: Fix warning
-        # warnings.warn('The time_step you have passed to wfo(...) is invalid or equal to 0. Please see the docstring in '
-        #               'factor_model.py for information on time_step formatting.', category=TimeStep)
+        print_warning(message='The time_step you have passed to wfo(...) is invalid or equal to 0. Please see the '
+                              'docstring in factor_model.py for information on time_step formatting.',
+                      category=FactorlibUserWarning.TimeStep)
     return returns
 
 
@@ -53,6 +49,10 @@ def clean_data(X: pd.DataFrame, y: pd.Series):
     return X, y
 
 
+def calc_compounded_returns(returns: pd.Series):
+    return returns.add(1).cumprod() - 1
+
+    
 def _get_nearest_month_begin(date: datetime):
     start_of_month = pd.Timestamp(date.year, date.month, 1)
     start_of_next_month = start_of_month + pd.offsets.MonthBegin(1)
