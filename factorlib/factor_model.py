@@ -2,12 +2,14 @@ import shap
 import numpy as np
 import pandas as pd
 import quantstats as qs
-import pickle as pkl
+import joblib
+import os
 
 from typing import Optional
 from datetime import datetime
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from pathlib import Path
+from time import perf_counter_ns
 
 from sklearn.ensemble import *
 from scipy.optimize import minimize
@@ -17,10 +19,9 @@ from xgboost import XGBRegressor
 import lightgbm as lgb
 
 from factorlib.factor import Factor
-from factorlib.stats import Statistics
 from factorlib.types import ModelType, FactorlibUserWarning, PortOptOptions
 from factorlib.utils.helpers import _set_index_names_adaptive, shift_by_time_step, get_subset_by_date_bounds, \
-    _get_nearest_month_end, _get_nearest_month_begin, clean_data
+    _get_nearest_month_end, _get_nearest_month_begin, clean_data, offset_datetime
 from factorlib.utils.datetime_maps import timedelta_intervals
 from factorlib.utils.system import show_processing_animation, print_dynamic_line, print_warning, _spinner_animation
 
@@ -38,7 +39,8 @@ class FactorModel:
         This class represents a factor for the FactorModel class. It is responsible for formatting user data, and
         transforming it for use in a `FactorModel`.
         """
-        if not load_path:
+
+        if load_path is None:
             assert name is not None, '`name` cannot be None. This will be the name of the file that your model is saved as.'
             assert tickers is not None, '`tickers` cannot be None. If you are using candidates (recommended), you still ' \
                                         'need to pass a list of tickers for which you have returns data. These are ' \
@@ -55,8 +57,10 @@ class FactorModel:
             self.factors = pd.DataFrame()
             self.model_type = model_type
             self.model = None
+            self.prev_model = None
             self.earliest_start = None
             self.latest_end = None
+            self.trial = 0
         else:
             self.load_path = load_path
 
@@ -96,7 +100,7 @@ class FactorModel:
         del factor
 
     def fit(self, X, y, **kwargs):
-        if self.model_type == 'lgbm':
+        if self.model_type == ModelType.lightgbm or self.model_type == 'lgbm':
             params = dict(kwargs)
             params['objective'] = 'regression'
             params['n_jobs'] = -1
@@ -104,9 +108,15 @@ class FactorModel:
             if 'num_boost_round' in params:
                 del params['num_boost_round']
             train_dataset = lgb.Dataset(X, y)
-            self.model = lgb.train(params=params,
-                                   train_set=train_dataset,
-                                   num_boost_round=kwargs['num_boost_round'])
+            if self.prev_model is not None:
+                self.model = lgb.train(params=params,
+                                       train_set=train_dataset,
+                                       num_boost_round=kwargs['num_boost_round'], init_model=self.prev_model)
+            else:
+                self.model = lgb.train(params=params,
+                                       train_set=train_dataset,
+                                       num_boost_round=kwargs['num_boost_round'])
+            self.prev_model = self.model
         else:
             self.model.fit(X, y)
 
@@ -127,7 +137,14 @@ class FactorModel:
             train_freq: str = None,
             candidates: dict = None,
             calc_training_ic: bool = False,
-            save_dir: Path = None, **kwargs):
+            save_dir: Path = Path('.'), **kwargs):
+
+        print()
+        print_dynamic_line()
+        print(f'Starting Walk-Forward Optimization (trail {self.trial}) from', start_date, 'to',
+              end_date, 'with a', train_interval.years, 'year training interval')
+        self.trial += 1
+        self.prev_model = None
 
         assert (self.interval == 'B' or self.interval == 'D' or self.interval == 'M'), \
             'Walk forward optimization currently only supports daily, business daily, and monthly data intervals.'
@@ -176,19 +193,14 @@ class FactorModel:
         start_date = _get_nearest_month_begin(start_date)
         end_date = _get_nearest_month_end(end_date)
 
-        print()
-        print_dynamic_line()
-        print('Starting Walk-Forward Optimization from', start_date, 'to',
-              end_date, 'with a', train_interval.years, 'year training interval')
-
         self.model = self._get_model(self.model_type)
 
         returns = shift_by_time_step(pred_time, returns)
         returns = get_subset_by_date_bounds(returns, start_date, end_date)
-        grouped_returns = returns.groupby(level='date')
-        for last_day, last_days_returns in grouped_returns:
-            pass
-        del grouped_returns
+        # grouped_returns = returns.groupby(level='date')
+        # for last_day, last_days_returns in grouped_returns:
+        #     pass
+        # del grouped_returns
 
         self.factors.sort_index(inplace=True)
         factors = get_subset_by_date_bounds(self.factors, start_date, end_date)
@@ -221,10 +233,13 @@ class FactorModel:
             y_train, X_train = y_train.align(X_train, join="left", axis=0)
             X_train, y_train = clean_data(X_train, y_train)
 
+            start = perf_counter_ns()
             self.fit(X_train, y_train, **kwargs)
+            end = perf_counter_ns()
             del y_train
 
             # calculate daily training spearman correlations
+            training_predictions: pd.DataFrame = None
             if calc_training_ic:
                 training_predictions = self.predict(X_train)
 
@@ -246,8 +261,7 @@ class FactorModel:
                 # only calculate spearman rank for days that have not already been calculated
                 daily_spearman_correlations = None
                 if daily_spearman_correlations is not None:
-                    returns_for_spearman.loc[
-                        ~returns_for_spearman.index.isin(daily_spearman_correlations.index)]
+                    returns_for_spearman.loc[~returns_for_spearman.index.isin(daily_spearman_correlations.index)]
 
                 # align the training predictions with returns for spearman
                 returns_for_spearman, training_predictions = returns_for_spearman.align(training_predictions,
@@ -275,7 +289,11 @@ class FactorModel:
             del y_pred
 
             if not anchored:
-                train_start = _get_nearest_month_begin(train_start + pd.DateOffset(months=1))
+                if index == 0:
+                    train_start = _get_nearest_month_begin(
+                        train_start + pd.DateOffset(months=1) + pd.DateOffset(years=4))
+                else:
+                    train_start = _get_nearest_month_begin(train_start + pd.DateOffset(months=1))
             train_end = pred_end
 
         expected_returns = expected_returns[expected_returns.index.get_level_values('ticker').notna()]
@@ -329,12 +347,14 @@ class FactorModel:
             del all_valid_candidates
 
         returns = shift_by_time_step(pred_time, returns, backwards=True)
-        returns = pd.concat([returns, last_days_returns])
-        mask = returns.index.duplicated(keep='first')
-        returns = returns[~mask]
+        # returns = pd.concat([returns, last_days_returns])
+        # mask = returns.index.duplicated(keep='first')
+        # returns = returns[~mask]
 
         # get 3 months prior to start of expected returns
-        returns_start_date = self.offset_datetime(expected_returns.index.get_level_values('date')[0], interval='M', sign=-3)
+        returns_start_date = offset_datetime(expected_returns.index.get_level_values('date')[0],
+                                             interval='M',
+                                             sign=-3)
         returns = get_subset_by_date_bounds(returns,
                                             start_date=returns_start_date,
                                             end_date=expected_returns.index.get_level_values('date')[-1])
@@ -355,9 +375,6 @@ class FactorModel:
         positions, returns = positions.align(returns, join='left', axis=0)
 
         returns_per_stock = returns.mul(positions.shift(1))  # you have to shift positions by 1 day
-        print('\nExpected Returns Per Stock:')
-        print(returns_per_stock)
-
         portfolio_returns = returns_per_stock.sum(axis=1)
         portfolio_returns.name = 'factors'
 
@@ -367,19 +384,30 @@ class FactorModel:
         if save_dir is not None:
             self.save(save_dir)
 
-        return Statistics(name=self.name, interval=self.interval, factors=self.factors,
-                          portfolio_returns=portfolio_returns, true_returns=returns, position_weights=positions,
-                          training_ic=training_spearman, shap_values=shap_values)
+        from factorlib.stats import Statistics
+        return Statistics(name=self.name, interval=self.interval, factors=factors,
+                          expected_returns=expected_returns, true_returns=returns,
+                          portfolio_returns=portfolio_returns, position_weights=positions,
+                          training_ic=training_spearman, shap_values=shap_values,
+                          trial=self.trial, save_dir=save_dir)
 
     def save(self, save_dir: Optional[Path] = Path('.')):
-        with open(save_dir / self.name / f'{self.name}.alpha', 'wb') as f:
-            pkl.dump(self, f)
+        save_path = save_dir / self.name
+
+        if not save_path.exists():
+            save_path.mkdir(exist_ok=True)
+
+        with open(save_path / f'{self.name}_{self.trial}.alpha', 'wb') as f:
+            joblib.dump(self, f)
 
     def load(self):
         with open(self.load_path, 'rb') as f:
-            loaded_model = pkl.load(f)
+            loaded_model = joblib.load(f)
         self.__dict__.update(loaded_model.__dict__)
         return self
+
+    def rename(self, new_name: str):
+        self.name = new_name
 
     def _get_positions(self, row, k_pct: float = 0.2,
                        long_pct: float = 0.5,
@@ -427,7 +455,7 @@ class FactorModel:
         all_indices = pd.concat([topk, bottomk])
 
         current_date = row.name
-        three_months_prior = self.offset_datetime(current_date, interval='M', sign=-3)
+        three_months_prior = offset_datetime(current_date, interval='M', sign=-3)
         past_returns = get_subset_by_date_bounds(returns,
                                                  start_date=three_months_prior,
                                                  end_date=current_date).iloc[:-1]
@@ -471,7 +499,7 @@ class FactorModel:
         all_indices = pd.concat([topk, bottomk])
 
         current_date = row.name
-        three_months_prior = self.offset_datetime(current_date, interval='M', sign=-3)
+        three_months_prior = offset_datetime(current_date, interval='M', sign=-3)
         past_returns = get_subset_by_date_bounds(returns,
                                                  start_date=three_months_prior,
                                                  end_date=current_date).iloc[:-1]
@@ -505,7 +533,7 @@ class FactorModel:
         all_indices = pd.concat([topk, bottomk])
 
         current_date = row.name
-        three_months_prior = self.offset_datetime(current_date, interval='M', sign=-3)
+        three_months_prior = offset_datetime(current_date, interval='M', sign=-3)
         past_returns = get_subset_by_date_bounds(returns,
                                                  start_date=three_months_prior,
                                                  end_date=current_date).iloc[:-1]
@@ -577,36 +605,26 @@ class FactorModel:
         hrp /= hrp.sum()
         return hrp
 
-    def _get_model(self, model_type: str, **kwargs):
-        if model_type == 'hgb':
+    def _get_model(self, model_type: ModelType, **kwargs):
+        if model_type == ModelType.hist_gradient_boost or model_type == 'hgb':
             self.model = HistGradientBoostingRegressor(**kwargs)
-        elif model_type == 'gbr':
+        elif model_type == ModelType.gradient_boost or model_type == 'gbr':
             self.model = GradientBoostingRegressor(**kwargs)
-        elif model_type == 'adb':
+        elif model_type == ModelType.adaboost or model_type == 'adb':
             self.model = AdaBoostRegressor(**kwargs)
-        elif model_type == 'rf':
+        elif model_type == ModelType.random_forest or model_type == 'rf':
             self.model = RandomForestRegressor(**kwargs)
-        elif model_type == 'xgb':
+        elif model_type == ModelType.xgboost or model_type == 'xgb':
             self.model = XGBRegressor(**kwargs)
         # elif model_type == 'catboost':
         #     self.model = CatBoostRegressor(**kwargs)
-        elif model_type == 'lgbm':
+        elif model_type == ModelType.lightgbm or model_type == 'lgbm':
             self.model = None
         else:
-            print(message='The model you chose (model_type) has not been implemented yet. Please submit a request to '
-                          'the factorlib github repository to expedite the implementation of this model. Defaulting '
-                          'to LightGBM.', category=FactorlibUserWarning.NotImplemented)
+            print_warning(
+                message='The model you chose (model_type) has not been implemented yet. Please submit a request to '
+                        'the factorlib github repository to expedite the implementation of this model. Defaulting '
+                        'to LightGBM.', category=FactorlibUserWarning.NotImplemented)
             self.model = None
 
         return self.model
-
-    def offset_datetime(self, date: datetime, interval: str, sign=1):
-        if interval == 'D':
-            date += sign * pd.DateOffset(days=1)
-        elif interval == 'W':
-            date += sign * pd.DateOffset(days=7)
-        elif interval == 'M':
-            date += sign * pd.DateOffset(months=1)
-        elif interval == 'Y':
-            date += sign * pd.DateOffset(years=1)
-        return date

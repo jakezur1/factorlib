@@ -8,6 +8,18 @@ from datetime import datetime
 from factorlib.utils.system import FactorlibUserWarning, print_warning
 
 
+def offset_datetime(date: datetime, interval: str, sign=1):
+    if interval == 'D' or interval == 'B':
+        date += sign * pd.DateOffset(days=1)
+    elif interval == 'W':
+        date += sign * pd.DateOffset(days=7)
+    elif interval == 'M':
+        date += sign * pd.DateOffset(months=1)
+    elif interval == 'Y':
+        date += sign * pd.DateOffset(years=1)
+    return date
+
+
 def shift_by_time_step(time: str, returns: pd.DataFrame, backwards: bool = False):
     value = time.split('t+')
     if len(value) > 0:

@@ -7,7 +7,7 @@ import warnings
 from pathlib import Path
 from typing import Optional
 from time import perf_counter_ns
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from factorlib.utils.helpers import _set_index_names_adaptive
 from factorlib.types import SpliceBy

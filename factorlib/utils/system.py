@@ -37,6 +37,10 @@ def get_raw_data_dir() -> Path:
     return get_data_dir() / 'raw'
 
 
+def get_experiments_dir() -> Path:
+    return get_root_dir() / 'experiments'
+
+
 def get_factors_dir() -> Path:
     return get_root_dir() / 'factors'
 

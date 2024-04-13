@@ -22,8 +22,7 @@ class Factor:
                  general_factor: bool = False,
                  transforms: Optional[list[any]] = None,
                  transform_columns: Optional[list[str]] = None,
-                 categorical: Optional[list[str]] = None,
-                 normalize: bool = False):
+                 categorical: Optional[list[str]] = None):
         """
         :param name: The name of the factor. If multiple factors are included in this object, name it by a
                      general category that separates this dataset from other factor objects.
@@ -49,28 +48,36 @@ class Factor:
                                   will be applied to the entire dataframe, except for categorical columns.
         :param categorical: The columns that should be considered as categorical variables for XGBoost during
                             walk-forward optimization.
-        :param normalize: TODO: normalize row-wise if normalize=True
         """
+
+        self.name = name
+        self.data = data
+        self.interval = interval
+        self.tickers = tickers
+        self.transforms = transforms
+        self.categorical = categorical
+        self.start = None
+        self.end = None
 
         @show_processing_animation(message_func=lambda name, *args, **kwargs: f'Creating factor: {name}',
                                    animation=_spinner_animation)
         def inner_init(_name, _data, _interval, _tickers, _price_data, _general_factor, _transforms, _transform_columns,
-                       _categorical, _normalize):
+                       _categorical):
             assert ('date' in data.index.names), f'Exiting due to missing \'date\' index in factor named: {name}. ' \
                                                  f'See factorlib.factor docstring for factor formatting details.'
 
-            self.name = name
-            self.data = data
-            self.interval = interval
-            self.tickers = tickers
-            self.transforms = transforms
-            self.categorical = categorical
+            self.name = _name
+            self.data = _data
+            self.interval = _interval
+            self.tickers = _tickers
+            self.transforms = _transforms
+            self.categorical = _categorical
 
             self.data = self.data.reset_index().set_index('date')
             self.data.index = pd.to_datetime(self.data.index)
             self.data.sort_index(inplace=True)
 
-            if not general_factor and not price_data:
+            if not _general_factor and not _price_data:
                 assert ('ticker' in self.data.columns), 'The data you provided is neither a general_factor, nor ' \
                                                         'price_data, but it does not have a ticker index or column. ' \
                                                         'Please reformat your data to include a ticker index, or ' \
@@ -81,12 +88,12 @@ class Factor:
             self.start = self.data.index.get_level_values('date')[0]
             self.end = self.data.index.get_level_values('date')[-1]
 
-            if general_factor:
-                assert (tickers is not None), 'All general factors mut be supplied with the `tickers` parameter. ' \
+            if _general_factor:
+                assert (_tickers is not None), 'All general factors mut be supplied with the `tickers` parameter. ' \
                                               'Ideally, this should be fully comprehensive list of all tickers that ' \
                                               'you plan to use in the factor model to which this factor will be added.'
                 self.data = self._create_multi_index(self.data)
-            elif price_data:
+            elif _price_data:
                 self.data = self.data.stack()
                 self.data.name = name + '_price_data'
 
@@ -98,24 +105,24 @@ class Factor:
                 self.interval).ffill().reset_index(level='ticker', drop=True).set_index('ticker', append=True)
 
             if _transform_columns is None:
-                transform_columns = self.data.columns
-                if categorical is not None:
-                    transform_columns = [column for column in self.data.columns if column not in categorical]
+                _transform_columns = self.data.columns
+                if _categorical is not None:
+                    _transform_columns = [column for column in self.data.columns if column not in _categorical]
 
-            if categorical is not None:
+            if _categorical is not None:
                 for column in self.data.columns:
-                    if column in categorical:
+                    if column in _categorical:
                         self.data[column] = self.data[column].astype(pd.Categorical)
 
             if self.tickers is not None:
                 self.data = self.data[self.data.index.get_level_values('ticker').isin(self.tickers)]
 
-            if transforms is not None:
-                for transform in transforms:
-                    self.data[transform_columns] = transform(self.data[transform_columns])
+            if _transforms is not None:
+                for transform in _transforms:
+                    self.data[_transform_columns] = transform(self.data[_transform_columns])
 
         inner_init(name, data, interval, tickers, price_data, general_factor, transforms, transform_columns,
-                   categorical, normalize)
+                   categorical)
 
     def _create_multi_index(self, factor_data, tickers: Optional[list[str]] = None):
         if tickers is None:
